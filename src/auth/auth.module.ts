@@ -16,12 +16,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN', '1h'),
-        },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret) throw new Error('JWT_SECRET is missing');
+
+        const expiresIn =
+          configService.get<number>('JWT_EXPIRES_IN') ?? 3600;
+
+        return {
+          secret,
+          signOptions: { expiresIn },
+        };
+      },
     }),
   ],
   exports: [JwtModule],

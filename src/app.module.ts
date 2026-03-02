@@ -4,6 +4,8 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ImageModule } from './image/image.module';
+import { LlmModule } from './llm/llm.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { ThrottlerModule } from '@nestjs/throttler';
       ],
     }),
     AuthModule,
+    ImageModule,
+    LlmModule,
   ],
   controllers: [AppController],
   providers: [AppService],
