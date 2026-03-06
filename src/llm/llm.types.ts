@@ -6,10 +6,12 @@ export type GenerateImageParams = {
   quality?: "low" | "medium" | "high" | "auto";
   outputFormat?: "png" | "jpeg" | "webp";
   timeoutMs?: number;
+  companionId?: string;
 };
 
 export type GenerateImageResult = {
   b64: string;
   contentType: string;
   model: string;
+  companionId?: string;
 };

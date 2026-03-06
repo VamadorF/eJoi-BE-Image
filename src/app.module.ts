@@ -6,6 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ImageModule } from './image/image.module';
 import { LlmModule } from './llm/llm.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { LlmModule } from './llm/llm.module';
     AuthModule,
     ImageModule,
     LlmModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

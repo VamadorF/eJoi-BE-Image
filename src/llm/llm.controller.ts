@@ -5,21 +5,23 @@ import { LlmService } from "./llm.service";
 export class LlmController {
   constructor(private readonly llm: LlmService) { }
 
-  @Post("image-test")
-  async imageTest(@Body() body: { prompt: string }) {
-    const result = await this.llm.generateImage({
+  @Post("image")
+  async imageTest(@Body() body: { prompt: string; companionId: string }) {
+    const result = await this.llm.generateAndStoreImage({
+      companionId: body?.companionId,
       prompt: body?.prompt ?? "Un zorro cyberpunk en Santiago, ilustración nocturna",
       model: "gpt-image-1-mini",
       quality: "high",
       size: "1024x1024",
       outputFormat: "png",
-      timeoutMs: 60000, // 👈 CLAVE
+      timeoutMs: 60000,
     });
 
     return {
-      contentType: result.contentType,
-      b64: result.b64,
-      model: result.model,
+      companionId: result.companionId,
+      filename: result.filename,
+      fileUrl: result.fileUrl,
+      createdAt: result.createdAt,
     };
   }
 }
