@@ -110,6 +110,8 @@ export class LlmService {
       throw new InternalServerErrorException("LLM: prompt vacío.");
     }
 
+    console.log(`Generating image with prompt: "${prompt}", model: ${params.model}, size: ${params.size}, quality: ${params.quality}, outputFormat: ${params.outputFormat}`);
+
     if (!params.companionId) {
       throw new InternalServerErrorException("companionId es requerido para almacenar la imagen.");
     }
