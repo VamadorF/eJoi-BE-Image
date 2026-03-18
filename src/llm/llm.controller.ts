@@ -10,7 +10,7 @@ export class LlmController {
     const result = await this.llm.generateAndStoreImage({
       companionId: body?.companionId,
       prompt: body?.prompt ?? "Un zorro cyberpunk en Santiago, ilustración nocturna",
-      model: "gpt-image-1-mini",
+      model: "gpt-image-1",
       quality: "high",
       size: "1024x1024",
       outputFormat: "png",
