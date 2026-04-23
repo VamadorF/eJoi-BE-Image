@@ -3,7 +3,10 @@ import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";                    
 import { LlmService } from "./llm.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { ApiTags, ApiOperation } from "@nestjs/swagger";
 
+
+@ApiTags('llm')
 @Controller("llm")
 export class LlmController {
   constructor(
@@ -13,6 +16,7 @@ export class LlmController {
 
   @Post("image")
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Generar y almacenar una imagen' })
   async imageTest(@Body() body: { prompt: string; companionId: string }) {
     const prompt = body?.prompt ?? "Un zorro cyberpunk en Santiago, ilustración nocturna";
     const companionId = body?.companionId;
