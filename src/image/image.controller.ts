@@ -2,7 +2,9 @@ import { Body, Controller, Post, HttpCode, HttpStatus, UseGuards } from '@nestjs
 import { ImageService } from './image.service';
 import { GenerateImageDto } from './dto/generate-image.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'; 
+import { ApiTags} from "@nestjs/swagger";
 
+@ApiTags('image')
 @Controller('image')
 export class ImageController {
     constructor(private readonly imageService: ImageService) { }
