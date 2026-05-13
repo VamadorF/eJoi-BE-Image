@@ -116,9 +116,9 @@ export class LlmService {
       throw new InternalServerErrorException("companionId es requerido para almacenar la imagen.");
     }
 
-    const model = params.model ?? "gpt-image-1-mini";
+    const model = params.model ?? "gpt-image-1";
     const size = params.size ?? "1024x1024";
-    const quality = params.quality ?? "low";
+    const quality = params.quality ?? "high";
     const outputFormat = params.outputFormat ?? "png";
     const timeoutMs = params.timeoutMs ?? this.defaultTimeoutMs;
 

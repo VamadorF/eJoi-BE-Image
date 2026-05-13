@@ -17,101 +17,75 @@ export class ImageService {
         });
     }
 
-    async generateImageDallE(dto: GenerateImageDto) {
+    async generateImageWithFile(dto: GenerateImageWithFileDto, file: Express.Multer.File) {
         try {
-            const response = await this.openai.images.generate({
-                model: 'dall-e-3',
+            if (!dto.prompt || dto.prompt.trim().length === 0) {
+                throw new BadRequestException('El prompt es obligatorio');
+            }
+
+            if (!file) {
+                throw new BadRequestException('La imagen es obligatoria');
+            }
+
+            const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/webp'];
+
+            if (!allowedMimeTypes.includes(file.mimetype)) {
+                throw new BadRequestException(
+                    'Formato de imagen no permitido. Usa PNG, JPG, JPEG o WEBP.',
+                );
+            }
+
+            const maxSizeInBytes = 10 * 1024 * 1024;
+
+            if (file.size > maxSizeInBytes) {
+                throw new BadRequestException(
+                    'La imagen no puede superar los 10MB.',
+                );
+            }
+
+            const imageFile = await toFile(
+                file.buffer,
+                file.originalname,
+                {
+                    type: file.mimetype,
+                },
+            );
+
+            const response = await this.openai.images.edit({
+                model: 'gpt-image-1',
+                image: imageFile,
                 prompt: dto.prompt,
-                n: 1,
-                size: dto.size ?? '1024x1024',
-                quality: dto.quality ?? 'standard',
-                style: dto.style ?? 'vivid',
+                size: '1024x1024',
             });
 
-            if (!response.data || !response.data[0] || !response.data[0].url) {
-                throw new Error('No se recibió una URL de imagen válida');
+            const imageBase64 = response.data?.[0]?.b64_json;
+
+            if (!imageBase64) {
+                throw new Error('No se recibió una imagen válida desde OpenAI');
             }
-            
+
+            const buffer = Buffer.from(imageBase64, 'base64');
+
+            const uploaded = await this.storage.uploadImage({
+                buffer,
+                contentType: 'image/png',
+                companionId: dto.companionId,
+                ext: 'png',
+            });
+
+            const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
             return {
-                imageUrl: response.data[0].url,
-                revisedPrompt: response.data[0].revised_prompt,
+                imageUrl: fileUrl,
             };
         } catch (error: any) {
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+
             throw new InternalServerErrorException(
-                error.message || 'Error al generar la imagen',
+                error.message || 'Error al generar imagen con archivo',
             );
         }
     }
-  async generateImageWithFile(dto: GenerateImageWithFileDto, file: Express.Multer.File ) 
-  {
-    try {
-      if (!dto.prompt || dto.prompt.trim().length === 0) {
-        throw new BadRequestException('El prompt es obligatorio');
-      }
-
-      if (!file) {
-        throw new BadRequestException('La imagen es obligatoria');
-      }
-
-      const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/webp'];
-
-      if (!allowedMimeTypes.includes(file.mimetype)) {
-        throw new BadRequestException(
-          'Formato de imagen no permitido. Usa PNG, JPG, JPEG o WEBP.',
-        );
-      }
-
-      const maxSizeInBytes = 10 * 1024 * 1024;
-
-      if (file.size > maxSizeInBytes) {
-        throw new BadRequestException(
-          'La imagen no puede superar los 10MB.',
-        );
-      }
-
-      const imageFile = await toFile(
-        file.buffer,        
-        file.originalname,   
-        {
-          type: file.mimetype, 
-        },
-      );
-
-      const response = await this.openai.images.edit({
-        model: 'gpt-image-1', 
-        image: imageFile,
-        prompt: dto.prompt,
-        size: '1024x1024', 
-      });
-
-      const imageBase64 = response.data?.[0]?.b64_json;
-
-      if (!imageBase64) {
-        throw new Error('No se recibió una imagen válida desde OpenAI');
-      }
-
-      const buffer = Buffer.from(imageBase64, 'base64');
-
-      const uploaded = await this.storage.uploadImage({
-        buffer,
-        contentType: 'image/png',
-        companionId: dto.companionId,
-        ext: 'png',
-      });
-
-      const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
-      return {
-        imageUrl: fileUrl,
-      };
-    } catch (error: any) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        error.message || 'Error al generar imagen con archivo',
-      );
-    }
-  }
-    }
+}
 
