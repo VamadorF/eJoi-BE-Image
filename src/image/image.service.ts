@@ -4,12 +4,14 @@ import OpenAI from 'openai';
 import { toFile } from 'openai';
 import { GenerateImageDto } from './dto/generate-image.dto';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
+import { buffer } from 'stream/consumers';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class ImageService {
     private openai: OpenAI;
 
-    constructor(private configService: ConfigService) {
+    constructor(private configService: ConfigService, private readonly storage: StorageService) {
         this.openai = new OpenAI({
             apiKey: this.configService.get<string>('OPENAI_API_KEY'),
         });
@@ -88,8 +90,18 @@ export class ImageService {
         throw new Error('No se recibió una imagen válida desde OpenAI');
       }
 
+      const buffer = Buffer.from(imageBase64, 'base64');
+
+      const uploaded = await this.storage.uploadImage({
+        buffer,
+        contentType: 'image/png',
+        companionId: dto.companionId,
+        ext: 'png',
+      });
+
+      const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
       return {
-        imageBase64,
+        imageUrl: fileUrl,
       };
     } catch (error: any) {
       if (error instanceof BadRequestException) {

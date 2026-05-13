@@ -4,5 +4,9 @@ export class GenerateImageWithFileDto {
   @IsString()
   @IsNotEmpty()
   prompt: string;
+
+  @IsString()
+  @IsNotEmpty()
+  companionId: string;
 }
 
