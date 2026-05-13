@@ -9,6 +9,10 @@ export class GenerateImageDto {
     @IsNotEmpty()
     prompt: string;
 
+    @IsString()
+    @IsNotEmpty()
+    userId: string;
+
     @IsOptional()
     @IsEnum(['1024x1024', '1792x1024', '1024x1792'])
     size?: ImageSize = '1024x1024';

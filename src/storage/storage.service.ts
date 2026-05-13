@@ -29,17 +29,17 @@ export class StorageService {
     async uploadImage(params: {
         buffer: Buffer;
         contentType: string;
-        companionId: string;
+        userId: string;
         ext: "png" | "jpeg" | "webp";
     }) {
 
-        console.log(`UploadImage:Uploading image for companionId ${params.companionId} with contentType ${params.contentType}`);
+        console.log(`UploadImage:Uploading image for userId ${params.userId} with contentType ${params.contentType}`);
 
         if (!params.buffer || !params.contentType) {
             throw new Error("Buffer and contentType are required for upload");
         }
 
-        const filename = `${params.companionId}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${params.ext}`;
+        const filename = `${params.userId}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${params.ext}`;
         const bucket = this.storage.bucket(this.bucketName);
         const file = bucket.file(filename);
 

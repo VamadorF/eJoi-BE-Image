@@ -100,7 +100,7 @@ export class LlmService {
   }
 
   async generateAndStoreImage(params: GenerateImageParams): Promise<{
-    companionId: string;
+    userId: string;
     filename: string;
     fileUrl: string;
     createdAt: Date;
@@ -112,8 +112,8 @@ export class LlmService {
 
     console.log(`Generating image with prompt: "${prompt}", model: ${params.model}, size: ${params.size}, quality: ${params.quality}, outputFormat: ${params.outputFormat}`);
 
-    if (!params.companionId) {
-      throw new InternalServerErrorException("companionId es requerido para almacenar la imagen.");
+    if (!params.userId) {
+      throw new InternalServerErrorException("userId es requerido para almacenar la imagen.");
     }
 
     const model = params.model ?? "gpt-image-1";
@@ -154,14 +154,14 @@ export class LlmService {
       const uploaded = await this.storage.uploadImage({
         buffer,
         contentType,
-        companionId: params.companionId,
+        userId: params.userId,
         ext: outputFormat,
       });
 
       const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
 
       return {
-        companionId: params.companionId,
+        userId: params.userId,
         filename: uploaded.filename,
         fileUrl: fileUrl,
         createdAt: new Date(),

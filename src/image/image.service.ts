@@ -69,7 +69,7 @@ export class ImageService {
             const uploaded = await this.storage.uploadImage({
                 buffer,
                 contentType: 'image/png',
-                companionId: dto.companionId,
+                userId: dto.userId,
                 ext: 'png',
             });
 
