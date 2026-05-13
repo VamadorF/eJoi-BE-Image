@@ -1,6 +1,6 @@
 import { Body, Controller, Inject, Post, UseGuards } from "@nestjs/common";
-import { CACHE_MANAGER } from "@nestjs/cache-manager";    
-import { Cache } from "cache-manager";                    
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
 import { LlmService } from "./llm.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ApiTags, ApiOperation } from "@nestjs/swagger";
@@ -11,8 +11,8 @@ import { ApiTags, ApiOperation } from "@nestjs/swagger";
 export class LlmController {
   constructor(
     private readonly llm: LlmService,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache, 
-  ) {}
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+  ) { }
 
   @Post("image")
   @UseGuards(JwtAuthGuard)

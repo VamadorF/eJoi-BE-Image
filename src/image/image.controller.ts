@@ -1,17 +1,65 @@
-import { Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Inject } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImageService } from './image.service';
-import { GenerateImageDto } from './dto/generate-image.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ApiTags } from "@nestjs/swagger";
-import { use } from 'passport';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
-import { dateTimestampProvider } from 'rxjs/internal/scheduler/dateTimestampProvider';
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
+import { LlmService } from "../llm/llm.service";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { ApiTags, ApiOperation } from "@nestjs/swagger";
 
 @ApiTags('image')
 @Controller('image')
 export class ImageController {
-    constructor(private readonly imageService: ImageService) { }
+    constructor(
+        private readonly imageService: ImageService,
+        private readonly llm: LlmService,
+        @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    ) { }
+
+    @Post("generate")
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Generar y almacenar una imagen' })
+    async imageTest(@Body() body: { prompt: string; companionId: string }) {
+        const prompt = body?.prompt ?? "Un zorro cyberpunk en Santiago, ilustración nocturna";
+        const companionId = body?.companionId;
+
+        const cacheKey = `llm:image:${companionId}:${prompt.trim().toLowerCase()}`;
+
+        const cached = await this.cacheManager.get<{
+            companionId: string;
+            filename: string;
+            fileUrl: string;
+            createdAt: string;
+        }>(cacheKey);
+
+        if (cached) {
+            console.log("CACHE HIT — companionId:", companionId);
+            return cached;
+        }
+        console.log("CACHE MISS — companionId:", companionId);
+
+        const result = await this.llm.generateAndStoreImage({
+            companionId,
+            prompt,
+            model: "gpt-image-1",
+            quality: "high",
+            size: "1024x1024",
+            outputFormat: "png",
+            timeoutMs: 60000,
+        });
+
+        const response = {
+            companionId: result.companionId,
+            filename: result.filename,
+            fileUrl: result.fileUrl,
+            createdAt: result.createdAt,
+        };
+
+        await this.cacheManager.set(cacheKey, response, 10 * 60 * 1000);
+
+        return response;
+    }
 
     @Post('generate-with-image')
     @HttpCode(HttpStatus.OK)

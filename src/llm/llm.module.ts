@@ -8,5 +8,6 @@ import { StorageModule } from 'src/storage/storage.module';
   controllers: [LlmController],
   providers: [LlmService],
   imports: [StorageModule],
+  exports: [LlmService],
 })
 export class LlmModule {}
