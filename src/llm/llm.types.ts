@@ -7,6 +7,8 @@ export type GenerateImageParams = {
   outputFormat?: "png" | "jpeg" | "webp";
   timeoutMs?: number;
   userId?: string;
+  companionId?: string;
+  uuid?: string;
 };
 
 export type GenerateImageResult = {
@@ -14,4 +16,6 @@ export type GenerateImageResult = {
   contentType: string;
   model: string;
   userId?: string;
+  companionId?: string;
+  uuid?: string;
 };

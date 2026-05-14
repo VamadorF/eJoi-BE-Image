@@ -9,13 +9,17 @@ export class GenerateImageDto {
     @IsNotEmpty()
     prompt: string;
 
+    @IsOptional()
     @IsString()
-    @IsNotEmpty()
-    userId: string;
+    userId?: string;
 
     @IsOptional()
     @IsString()
     companionId?: string;
+
+    @IsOptional()
+    @IsString()
+    uuid?: string;
 
     @IsOptional()
     @IsEnum(['1024x1024', '1792x1024', '1024x1792'])

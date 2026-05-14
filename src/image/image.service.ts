@@ -23,6 +23,10 @@ export class ImageService {
                 throw new BadRequestException('El prompt es obligatorio');
             }
 
+            if (!dto.uuid || dto.uuid.trim().length === 0) {
+                throw new BadRequestException('El uuid es obligatorio');
+            }
+
             if (!file) {
                 throw new BadRequestException('La imagen es obligatoria');
             }
@@ -69,7 +73,7 @@ export class ImageService {
             const uploaded = await this.storage.uploadImage({
                 buffer,
                 contentType: 'image/png',
-                userId: dto.userId,
+                uuid: dto.uuid,
                 ext: 'png',
             });
 

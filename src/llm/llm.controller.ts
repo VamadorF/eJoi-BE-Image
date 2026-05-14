@@ -17,27 +17,28 @@ export class LlmController {
   @Post("image")
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Generar y almacenar una imagen' })
-  async imageTest(@Body() body: { prompt: string; userId: string; companionId?: string }) {
+  async imageTest(@Body() body: { prompt: string; userId: string; companionId?: string; uuid?: string }) {
     const prompt = body?.prompt ?? "Un zorro cyberpunk en Santiago, ilustración nocturna";
-    const uuid = body.companionId || body?.userId;
+
+    const uuid = body.uuid ? body.uuid :  (body.companionId || body?.userId);
 
     const cacheKey = `llm:image:${uuid}:${prompt.trim().toLowerCase()}`;
 
     const cached = await this.cacheManager.get<{
-      userId: string;
+      uuid: string;
       filename: string;
       fileUrl: string;
       createdAt: string;
     }>(cacheKey);
 
     if (cached) {
-      console.log("CACHE HIT — userId:", uuid);
+      console.log("CACHE HIT — uuid:", uuid);
       return cached;
     }
-    console.log("CACHE MISS — userId:", uuid);
+    console.log("CACHE MISS — uuid:", uuid);
 
     const result = await this.llm.generateAndStoreImage({
-      userId: uuid,
+      uuid: uuid,
       prompt,
       model: "gpt-image-1",
       quality: "high",
@@ -47,7 +48,7 @@ export class LlmController {
     });
 
     const response = {
-      userId: result.userId,
+      uuid: result.uuid,
       filename: result.filename,
       fileUrl: result.fileUrl,
       createdAt: result.createdAt,
