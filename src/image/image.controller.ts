@@ -23,7 +23,7 @@ export class ImageController {
     async generateAndStoreImage(@Body() body: { prompt: string; userId?: string; companionId?: string, uuid?: string }) {
         const prompt = body?.prompt ?? "Un logo extraordinario en una noche cyberpunk con un cartel de neon que dice eJoi!";
         
-        console.log({ companionId: body.companionId, userId: body.userId, uuid: body.uuid });
+        console.log({ body });
         const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId);
 
         const cacheKey = `llm:image:${uuid}:${prompt.trim().toLowerCase()}`;
