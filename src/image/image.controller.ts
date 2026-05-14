@@ -26,6 +26,8 @@ export class ImageController {
 
         const cacheKey = `llm:image:${uuid}:${prompt.trim().toLowerCase()}`;
 
+        console.log("Received request to generate image with uuid:", uuid);
+
         const cached = await this.cacheManager.get<{
             uuid: string;
             filename: string;

@@ -160,6 +160,8 @@ export class LlmService {
 
       const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
 
+      console.log(`Image uploaded to storage with filename: ${uploaded.filename}, accessible at: ${fileUrl}`);
+      
       return {
         uuid: params.uuid,
         filename: uploaded.filename,
