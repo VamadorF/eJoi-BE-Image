@@ -24,7 +24,7 @@ export class ImageController {
         const prompt = body?.prompt ?? "Un logo extraordinario en una noche cyberpunk con un cartel de neon que dice eJoi!";
         
         console.log({ body });
-        const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId);
+        const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId) || 'e7d59252-6774-4230-8bc2-0a8606caec8a';
 
         const cacheKey = `llm:image:${uuid}:${prompt.trim().toLowerCase()}`;
 
