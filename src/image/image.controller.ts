@@ -20,9 +20,11 @@ export class ImageController {
     @Post("generate")
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Generar y almacenar una imagen' })
-    async imageTest(@Body() body: { prompt: string; userId?: string; companionId?: string, uuid?: string }) {
-        const prompt = body?.prompt ?? "Un zorro cyberpunk en Santiago, ilustración nocturna";
-        const uuid = body.uuid ? body.uuid :  (body.companionId || body?.userId);
+    async generateAndStoreImage(@Body() body: { prompt: string; userId?: string; companionId?: string, uuid?: string }) {
+        const prompt = body?.prompt ?? "Un logo extraordinario en una noche cyberpunk con un cartel de neon que dice eJoi!";
+        
+        console.log({ companionId: body.companionId, userId: body.userId, uuid: body.uuid });
+        const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId);
 
         const cacheKey = `llm:image:${uuid}:${prompt.trim().toLowerCase()}`;
 
