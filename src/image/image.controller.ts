@@ -23,7 +23,6 @@ export class ImageController {
     async generateAndStoreImage(@Body() body: { prompt: string; userId?: string; companionId?: string, uuid?: string }) {
         const prompt = body?.prompt ?? "Un logo extraordinario en una noche cyberpunk con un cartel de neon que dice eJoi!";
         
-        console.log({ body });
         const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId) || 'e7d59252-6774-4230-8bc2-0a8606caec8a';
 
         const cacheKey = `llm:image:${uuid}:${prompt.trim().toLowerCase()}`;
@@ -37,10 +36,10 @@ export class ImageController {
             createdAt: string;
         }>(cacheKey);
 
-        if (cached) {
+        /* if (cached) {
             console.log("CACHE HIT — uuid:", uuid);
             return cached;
-        }
+        } */
         console.log("CACHE MISS — uuid:", uuid);
 
         const result = await this.llm.generateAndStoreImage({
@@ -60,7 +59,7 @@ export class ImageController {
             createdAt: result.createdAt,
         };
 
-        await this.cacheManager.set(cacheKey, response, 10 * 60 * 1000);
+        //await this.cacheManager.set(cacheKey, response, 10 * 60 * 1000);
 
         return response;
     }
