@@ -24,7 +24,7 @@ export class LlmService {
     this.defaultModel = this.config.get<string>("LLM_MODEL") ?? "gpt-4o-mini";
     this.defaultTemperature = Number(this.config.get<string>("LLM_TEMPERATURE") ?? "0.7");
     this.defaultMaxOutputTokens = Number(this.config.get<string>("LLM_MAX_OUTPUT_TOKENS") ?? "300");
-    this.defaultTimeoutMs = Number(this.config.get<string>("LLM_TIMEOUT_MS") ?? "12000");
+    this.defaultTimeoutMs = 55000; //Number(this.config.get<string>("LLM_TIMEOUT_MS") ?? "12000");
   }
 
   private async withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -79,6 +79,7 @@ export class LlmService {
             ? "image/jpeg"
             : "image/webp";
 
+      this.logger.log(`Generated image with model ${model}, size ${size}, quality ${quality}, outputFormat ${outputFormat}`);
       return { b64, contentType, model };
     } catch (err: any) {
       const status = err?.status ?? err?.response?.status;
