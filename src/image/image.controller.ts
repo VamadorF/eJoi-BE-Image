@@ -45,9 +45,9 @@ export class ImageController {
         const result = await this.llm.generateAndStoreImage({
             uuid,
             prompt,
-            model: "gpt-image-1",
+            model: "gpt-image-1-mini",
             quality: "low",
-            size: "512x512",
+            size: "1024x1024",
             outputFormat: "png",
             timeoutMs: 60000,
         });
