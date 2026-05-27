@@ -46,8 +46,8 @@ export class ImageController {
             uuid,
             prompt,
             model: "gpt-image-1",
-            quality: "high",
-            size: "1024x1024",
+            quality: "low",
+            size: "512x512",
             outputFormat: "png",
             timeoutMs: 60000,
         });
