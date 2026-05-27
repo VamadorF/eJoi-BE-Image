@@ -78,8 +78,9 @@ export class ImageService {
             });
 
             const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
+            const publicUrl = this.storage.getPublicUrl(uploaded.storagePath);
             return {
-                imageUrl: fileUrl,
+                imageUrl: publicUrl,
             };
         } catch (error: any) {
             if (error instanceof BadRequestException) {

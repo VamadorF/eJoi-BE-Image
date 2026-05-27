@@ -157,13 +157,14 @@ export class LlmService {
       });
 
       const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
+      const publicUrl = this.storage.getPublicUrl(uploaded.storagePath);
 
       console.log(`Image uploaded to storage with filename: ${uploaded.filename}, accessible at: ${fileUrl}`);
 
       return {
         uuid: params.uuid,
         filename: uploaded.filename,
-        fileUrl: fileUrl,
+        fileUrl: publicUrl, // OJO: esto es público, no expira. El fileUrl con firma expira pero es más seguro para compartir 
         createdAt: new Date(),
       };
     } catch (err: any) {
