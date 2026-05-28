@@ -104,6 +104,7 @@ export class LlmService {
     uuid: string;
     filename: string;
     fileUrl: string;
+    storagePath: string;
     createdAt: Date;
   }> {
     const prompt = (params.prompt ?? "").trim();
@@ -157,15 +158,18 @@ export class LlmService {
         ext: outputFormat,
       });
 
-      const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
-      const publicUrl = this.storage.getPublicUrl(uploaded.storagePath);
+      const isPublicRead = this.config.get<string>("GCS_PUBLIC_READ") === "true";
+      const fileUrl = isPublicRead
+        ? this.storage.getPublicUrl(uploaded.storagePath)
+        : await this.storage.getSignedReadUrl(uploaded.storagePath, 60);
 
       console.log(`Image uploaded to storage with filename: ${uploaded.filename}, accessible at: ${fileUrl}`);
 
       return {
         uuid: params.uuid,
         filename: uploaded.filename,
-        fileUrl: publicUrl, // OJO: esto es público, no expira. El fileUrl con firma expira pero es más seguro para compartir 
+        fileUrl,
+        storagePath: uploaded.storagePath,
         createdAt: new Date(),
       };
     } catch (err: any) {

@@ -1,4 +1,4 @@
-import { Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Inject } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Inject } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImageService } from './image.service';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
@@ -23,7 +23,10 @@ export class ImageController {
     async generateAndStoreImage(@Body() body: { prompt: string; userId?: string; companionId?: string, uuid?: string }) {
         const prompt = body?.prompt ?? "Un logo extraordinario en una noche cyberpunk con un cartel de neon que dice eJoi!";
         
-        const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId) || 'e7d59252-6774-4230-8bc2-0a8606caec8a';
+        const uuid = body?.uuid ?? body?.userId ?? body?.companionId;
+        if (!uuid?.trim()) {
+            throw new BadRequestException('uuid o userId es requerido');
+        }
 
         const cacheKey = `llm:image:${uuid}:${prompt.trim().toLowerCase()}`;
 
@@ -33,6 +36,7 @@ export class ImageController {
             uuid: string;
             filename: string;
             fileUrl: string;
+            storagePath: string;
             createdAt: string;
         }>(cacheKey);
 
@@ -56,6 +60,7 @@ export class ImageController {
             uuid: result.uuid,
             filename: result.filename,
             fileUrl: result.fileUrl,
+            storagePath: result.storagePath,
             createdAt: result.createdAt,
         };
 
