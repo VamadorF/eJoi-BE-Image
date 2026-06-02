@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException, BadRequestException, Logger }
 import { LlmService } from '../llm/llm.service';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
 import { StorageService } from '../storage/storage.service';
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class ImageService {
@@ -10,6 +11,7 @@ export class ImageService {
     constructor(
         private readonly llm: LlmService,
         private readonly storage: StorageService,
+        private readonly configService: ConfigService,
     ) { }
 
     async generateImageWithFile(dto: GenerateImageWithFileDto, file: Express.Multer.File) {
