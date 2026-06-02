@@ -25,7 +25,7 @@ export class ImageController {
     async generateAndStoreImage(@Body() body: { prompt: string; userId?: string; companionId?: string, uuid?: string }) {
         const prompt = body?.prompt ?? "Un logo extraordinario en una noche cyberpunk con un cartel de neon que dice eJoi!";
 
-        const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId) || 'e7d59252-6774-4230-8bc2-0a8606caec8a';
+        const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId) || undefined;
 
         this.logger.log("Received request to generate image with uuid:", uuid);
 
