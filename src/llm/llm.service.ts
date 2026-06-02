@@ -125,7 +125,7 @@ export class LlmService {
         ext: params.outputFormat ?? "png",
       });
 
-      const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
+      const fileUrl = await this.storage.getPublicUrl(uploaded.storagePath);
 
       this.logger.log(`Image uploaded to storage with filename: ${uploaded.filename}, accessible at: ${fileUrl}`);
 

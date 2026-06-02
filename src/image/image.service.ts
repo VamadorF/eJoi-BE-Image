@@ -60,7 +60,7 @@ export class ImageService {
                 ext: 'png',
             });
 
-            const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
+            const fileUrl = await this.storage.getPublicUrl(uploaded.storagePath);
             return {
                 imageUrl: fileUrl,
             };
