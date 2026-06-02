@@ -1,21 +1,16 @@
-import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
-import { toFile } from 'openai';
-import { GenerateImageDto } from './dto/generate-image.dto';
+import { Injectable, InternalServerErrorException, BadRequestException, Logger } from '@nestjs/common';
+import { LlmService } from '../llm/llm.service';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
-import { buffer } from 'stream/consumers';
 import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class ImageService {
-    private openai: OpenAI;
+    private readonly logger = new Logger(ImageService.name);
 
-    constructor(private configService: ConfigService, private readonly storage: StorageService) {
-        this.openai = new OpenAI({
-            apiKey: this.configService.get<string>('OPENAI_API_KEY'),
-        });
-    }
+    constructor(
+        private readonly llm: LlmService,
+        private readonly storage: StorageService,
+    ) { }
 
     async generateImageWithFile(dto: GenerateImageWithFileDto, file: Express.Multer.File) {
         try {
@@ -47,28 +42,16 @@ export class ImageService {
                 );
             }
 
-            const imageFile = await toFile(
-                file.buffer,
-                file.originalname,
-                {
-                    type: file.mimetype,
-                },
-            );
-
-            const response = await this.openai.images.edit({
-                model: 'gpt-image-1',
-                image: imageFile,
+            const result = await this.llm.generateImage({
                 prompt: dto.prompt,
+                model: 'gpt-image-1-mini',
+                quality: 'low',
                 size: '1024x1024',
+                outputFormat: 'png',
+                timeoutMs: 30000,
             });
 
-            const imageBase64 = response.data?.[0]?.b64_json;
-
-            if (!imageBase64) {
-                throw new Error('No se recibió una imagen válida desde OpenAI');
-            }
-
-            const buffer = Buffer.from(imageBase64, 'base64');
+            const buffer = Buffer.from(result.b64, 'base64');
 
             const uploaded = await this.storage.uploadImage({
                 buffer,
@@ -99,4 +82,3 @@ export class ImageService {
         }
     }
 }
-

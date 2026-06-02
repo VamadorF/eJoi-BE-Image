@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Inject } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Inject, Logger } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImageService } from './image.service';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
@@ -11,6 +11,8 @@ import { ApiTags, ApiOperation } from "@nestjs/swagger";
 @ApiTags('image')
 @Controller('image')
 export class ImageController {
+    private readonly logger = new Logger(ImageController.name);
+
     constructor(
         private readonly imageService: ImageService,
         private readonly llm: LlmService,
@@ -22,29 +24,10 @@ export class ImageController {
     @ApiOperation({ summary: 'Generar y almacenar una imagen' })
     async generateAndStoreImage(@Body() body: { prompt: string; userId?: string; companionId?: string, uuid?: string }) {
         const prompt = body?.prompt ?? "Un logo extraordinario en una noche cyberpunk con un cartel de neon que dice eJoi!";
-        
-        const uuid = body?.uuid ?? body?.userId ?? body?.companionId;
-        if (!uuid?.trim()) {
-            throw new BadRequestException('uuid o userId es requerido');
-        }
 
-        const cacheKey = `llm:image:${uuid}:${prompt.trim().toLowerCase()}`;
+        const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId) || undefined;
 
-        console.log("Received request to generate image with uuid:", uuid);
-
-        const cached = await this.cacheManager.get<{
-            uuid: string;
-            filename: string;
-            fileUrl: string;
-            storagePath: string;
-            createdAt: string;
-        }>(cacheKey);
-
-        /* if (cached) {
-            console.log("CACHE HIT — uuid:", uuid);
-            return cached;
-        } */
-        console.log("CACHE MISS — uuid:", uuid);
+        this.logger.log("Received request to generate image with uuid:", uuid);
 
         const result = await this.llm.generateAndStoreImage({
             uuid,
@@ -53,20 +36,16 @@ export class ImageController {
             quality: "low",
             size: "1024x1024",
             outputFormat: "png",
-            timeoutMs: 60000,
+            timeoutMs: 30000,
         });
 
-        const response = {
+        return {
             uuid: result.uuid,
             filename: result.filename,
             fileUrl: result.fileUrl,
             storagePath: result.storagePath,
             createdAt: result.createdAt,
         };
-
-        //await this.cacheManager.set(cacheKey, response, 10 * 60 * 1000);
-
-        return response;
     }
 
     @Post('generate-with-image')
@@ -78,7 +57,7 @@ export class ImageController {
         @UploadedFile() file: Express.Multer.File,
     ) {
 
-        console.log('Received file:', {
+        this.logger.log('Received file:', {
             originalname: file?.originalname,
             mimetype: file?.mimetype,
             size: file?.size,
