@@ -60,9 +60,16 @@ export class ImageService {
                 ext: 'png',
             });
 
-            const fileUrl = await this.storage.getPublicUrl(uploaded.storagePath);
+            const isPublicRead = this.configService.get<string>("GCS_PUBLIC_READ") === "true";
+            const fileUrl = isPublicRead
+                ? this.storage.getPublicUrl(uploaded.storagePath)
+                : await this.storage.getSignedReadUrl(uploaded.storagePath, 60);
+
             return {
-                imageUrl: fileUrl,
+                fileUrl,
+                storagePath: uploaded.storagePath,
+                filename: uploaded.filename,
+                uuid: dto.uuid,
             };
         } catch (error: any) {
             if (error instanceof BadRequestException) {

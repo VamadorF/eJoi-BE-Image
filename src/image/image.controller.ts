@@ -1,4 +1,4 @@
-import { Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Inject, Logger } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Inject, Logger } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImageService } from './image.service';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
@@ -43,6 +43,7 @@ export class ImageController {
             uuid: result.uuid,
             filename: result.filename,
             fileUrl: result.fileUrl,
+            storagePath: result.storagePath,
             createdAt: result.createdAt,
         };
     }

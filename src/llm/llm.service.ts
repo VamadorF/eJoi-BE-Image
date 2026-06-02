@@ -105,6 +105,7 @@ export class LlmService {
     uuid: string;
     filename: string;
     fileUrl: string;
+    storagePath: string;
     createdAt: Date;
   }> {
     if (!params.uuid) {
@@ -125,7 +126,10 @@ export class LlmService {
         ext: params.outputFormat ?? "png",
       });
 
-      const fileUrl = await this.storage.getPublicUrl(uploaded.storagePath);
+      const isPublicRead = this.config.get<string>("GCS_PUBLIC_READ") === "true";
+      const fileUrl = isPublicRead
+        ? this.storage.getPublicUrl(uploaded.storagePath)
+        : await this.storage.getSignedReadUrl(uploaded.storagePath, 60);
 
       this.logger.log(`Image uploaded to storage with filename: ${uploaded.filename}, accessible at: ${fileUrl}`);
 
@@ -133,6 +137,7 @@ export class LlmService {
         uuid: params.uuid,
         filename: uploaded.filename,
         fileUrl,
+        storagePath: uploaded.storagePath,
         createdAt: new Date(),
       };
     } catch (err: any) {
