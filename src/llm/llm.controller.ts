@@ -40,11 +40,11 @@ export class LlmController {
     const result = await this.llm.generateAndStoreImage({
       uuid: uuid,
       prompt,
-      model: "gpt-image-1",
-      quality: "high",
+      model: "gpt-image-1-mini",
+      quality: "low",
       size: "1024x1024",
       outputFormat: "png",
-      timeoutMs: 60000,
+      timeoutMs: 30000,
     });
 
     const response = {

@@ -1,7 +1,6 @@
 import { Injectable, InternalServerErrorException, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
-import { toFile } from 'openai';
+import { LlmService } from '../llm/llm.service';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
 import { StorageService } from '../storage/storage.service';
 import { ImageProviderFactory } from './providers/image-provider.factory';
@@ -10,17 +9,13 @@ import { ImageGenerationInput, ImageGenerationResult } from './providers/image-p
 @Injectable()
 export class ImageService {
     private readonly logger = new Logger(ImageService.name);
-    private openai: OpenAI;
 
     constructor(
-        private configService: ConfigService,
+        private readonly llm: LlmService,
         private readonly storage: StorageService,
+        private readonly configService: ConfigService,
         private readonly providerFactory: ImageProviderFactory,
-    ) {
-        this.openai = new OpenAI({
-            apiKey: this.configService.get<string>('OPENAI_API_KEY'),
-        });
-    }
+    ) { }
 
     /**
      * Punto de entrada principal para generación + almacenamiento de imágenes.
@@ -31,6 +26,7 @@ export class ImageService {
         uuid: string;
         filename: string;
         fileUrl: string;
+        storagePath: string;
         createdAt: Date;
     }> {
         const prompt = (params.prompt ?? '').trim();
@@ -66,6 +62,7 @@ export class ImageService {
             uuid,
             filename: uploaded.filename,
             fileUrl,
+            storagePath: uploaded.storagePath,
             createdAt: new Date(),
         };
     }
@@ -149,28 +146,16 @@ export class ImageService {
                 );
             }
 
-            const imageFile = await toFile(
-                file.buffer,
-                file.originalname,
-                {
-                    type: file.mimetype,
-                },
-            );
-
-            const response = await this.openai.images.edit({
-                model: 'gpt-image-1',
-                image: imageFile,
+            const result = await this.llm.generateImage({
                 prompt: dto.prompt,
+                model: 'gpt-image-1-mini',
+                quality: 'low',
                 size: '1024x1024',
+                outputFormat: 'png',
+                timeoutMs: 30000,
             });
 
-            const imageBase64 = response.data?.[0]?.b64_json;
-
-            if (!imageBase64) {
-                throw new Error('No se recibió una imagen válida desde OpenAI');
-            }
-
-            const buffer = Buffer.from(imageBase64, 'base64');
+            const buffer = Buffer.from(result.b64, 'base64');
 
             const uploaded = await this.storage.uploadImage({
                 buffer,
@@ -179,9 +164,16 @@ export class ImageService {
                 ext: 'png',
             });
 
-            const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
+            const isPublicRead = this.configService.get<string>("GCS_PUBLIC_READ") === "true";
+            const fileUrl = isPublicRead
+                ? this.storage.getPublicUrl(uploaded.storagePath)
+                : await this.storage.getSignedReadUrl(uploaded.storagePath, 60);
+
             return {
-                imageUrl: fileUrl,
+                fileUrl,
+                storagePath: uploaded.storagePath,
+                filename: uploaded.filename,
+                uuid: dto.uuid,
             };
         } catch (error: any) {
             if (error instanceof BadRequestException) {
@@ -194,4 +186,3 @@ export class ImageService {
         }
     }
 }
-
