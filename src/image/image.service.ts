@@ -1,20 +1,122 @@
-import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { toFile } from 'openai';
-import { GenerateImageDto } from './dto/generate-image.dto';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
-import { buffer } from 'stream/consumers';
 import { StorageService } from '../storage/storage.service';
+import { ImageProviderFactory } from './providers/image-provider.factory';
+import { ImageGenerationInput, ImageGenerationResult } from './providers/image-provider.types';
 
 @Injectable()
 export class ImageService {
+    private readonly logger = new Logger(ImageService.name);
     private openai: OpenAI;
 
-    constructor(private configService: ConfigService, private readonly storage: StorageService) {
+    constructor(
+        private configService: ConfigService,
+        private readonly storage: StorageService,
+        private readonly providerFactory: ImageProviderFactory,
+    ) {
         this.openai = new OpenAI({
             apiKey: this.configService.get<string>('OPENAI_API_KEY'),
         });
+    }
+
+    /**
+     * Punto de entrada principal para generación + almacenamiento de imágenes.
+     * Resuelve el provider vía factory (OpenAI/Segmind), aplica fallback opcional
+     * y mantiene el contrato de respuesta de POST /image/generate.
+     */
+    async generateAndStoreImage(params: ImageGenerationInput): Promise<{
+        uuid: string;
+        filename: string;
+        fileUrl: string;
+        createdAt: Date;
+    }> {
+        const prompt = (params.prompt ?? '').trim();
+        if (!prompt) {
+            throw new BadRequestException('El prompt es obligatorio');
+        }
+
+        const uuid = params.uuid?.trim();
+        if (!uuid) {
+            throw new BadRequestException('El uuid es obligatorio');
+        }
+
+        const input: ImageGenerationInput = { ...params, prompt, uuid };
+        const result = await this.generateWithFallback(input);
+
+        const ext = this.extFromContentType(result.contentType);
+        const buffer = Buffer.from(result.b64, 'base64');
+
+        this.logger.log(
+            `Imagen generada provider=${result.provider} model=${result.model} bytes=${buffer.length}`,
+        );
+
+        const uploaded = await this.storage.uploadImage({
+            buffer,
+            contentType: result.contentType,
+            uuid,
+            ext,
+        });
+
+        const fileUrl = await this.storage.getSignedReadUrl(uploaded.storagePath);
+
+        return {
+            uuid,
+            filename: uploaded.filename,
+            fileUrl,
+            createdAt: new Date(),
+        };
+    }
+
+    private async generateWithFallback(
+        input: ImageGenerationInput,
+    ): Promise<ImageGenerationResult> {
+        const primary = this.providerFactory.getProvider();
+        this.logger.log(`Provider seleccionado: ${primary.name}`);
+
+        try {
+            return await primary.generate(input);
+        } catch (primaryErr: any) {
+            const status = primaryErr?.status ?? primaryErr?.response?.status;
+            const code = primaryErr?.code;
+            this.logger.error(
+                `Provider primario "${primary.name}" falló: status=${status ?? 'n/a'} code=${code ?? 'n/a'}`,
+            );
+
+            const fallbackEnabled = this.providerFactory.isFallbackEnabled();
+            const fallback = this.providerFactory.getFallbackProvider();
+
+            if (primary.name === 'segmind' && fallbackEnabled && fallback.name !== primary.name) {
+                this.logger.warn(`Fallback habilitado: reintentando con "${fallback.name}"`);
+                try {
+                    const result = await fallback.generate(input);
+                    this.logger.log(`Fallback usado correctamente: provider=${fallback.name}`);
+                    return result;
+                } catch (fallbackErr: any) {
+                    this.logger.error(
+                        `Fallback "${fallback.name}" también falló: ${fallbackErr?.message ?? 'unknown'}`,
+                    );
+                    throw new InternalServerErrorException(
+                        'No pude generar la imagen en este momento. Por favor intenta nuevamente.',
+                    );
+                }
+            }
+
+            if (primaryErr instanceof InternalServerErrorException || primaryErr instanceof BadRequestException) {
+                throw primaryErr;
+            }
+            throw new InternalServerErrorException(
+                'No pude generar la imagen en este momento. Por favor intenta nuevamente.',
+            );
+        }
+    }
+
+    private extFromContentType(contentType: string): 'png' | 'jpeg' | 'webp' {
+        if (contentType.includes('jpeg') || contentType.includes('jpg')) return 'jpeg';
+        if (contentType.includes('webp')) return 'webp';
+        return 'png';
     }
 
     async generateImageWithFile(dto: GenerateImageWithFileDto, file: Express.Multer.File) {

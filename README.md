@@ -43,6 +43,15 @@ LLM_MAX_OUTPUT_TOKENS=300
 LLM_TEMPERATURE=0.7
 LLM_TIMEOUT_MS=12000
 
+# Proveedor de imágenes (openai | segmind)
+IMAGE_PROVIDER=openai
+ENABLE_IMAGE_PROVIDER_FALLBACK=false
+
+# Segmind (Imagen 4 Fast)
+SEGMIND_API_KEY=
+SEGMIND_DEFAULT_ASPECT_RATIO=16:9
+SEGMIND_NEGATIVE_PROMPT=blurry, pixelated, ugly, distorted, low quality
+
 # JWT
 JWT_SECRET=your_secret
 JWT_EXPIRES_IN=7d
@@ -126,6 +135,8 @@ npm run test:cov
 | size | string | No | Tamaño de la imagen |
 | quality | string | No | Calidad de la imagen |
 | style | string | No | Estilo de la imagen |
+| negativePrompt | string | No | Prompt negativo (usado por Segmind) |
+| aspectRatio | string | No | `1:1` \| `4:3` \| `3:4` \| `9:16` \| `16:9` (usado por Segmind) |
 
 ### AuthDTO
 
@@ -150,11 +161,55 @@ src/
 
 1. El cliente envía un prompt al endpoint `/image/generate`
 2. Se verifica el cache en Redis (key: `llm:image:{uuid}:{prompt}`)
-3. Si no hay cache, se llama a OpenAI para generar la imagen
+3. Si no hay cache, `ImageService` resuelve el provider vía `ImageProviderFactory` y genera la imagen
 4. La imagen se sube a Google Cloud Storage
 5. Se genera una URL firmada (60 min de expiración)
 6. El resultado se cachea en Redis (TTL: 10 min)
 7. Se devuelve la URL al cliente
+
+### Proveedores de imágenes (Adapter/Provider)
+
+La generación texto-a-imagen está desacoplada detrás de la interfaz `ImageProvider`
+(`src/image/providers/`). Se selecciona por variable de entorno:
+
+- `IMAGE_PROVIDER=openai` (por defecto) → OpenAI `gpt-image-1`.
+- `IMAGE_PROVIDER=segmind` → Segmind Imagen 4 Fast (`imagen-4-fast`).
+- Valor inválido → se usa `openai` (con warning en logs).
+
+Fallback opcional: si `IMAGE_PROVIDER=segmind`, Segmind falla y
+`ENABLE_IMAGE_PROVIDER_FALLBACK=true`, se reintenta con OpenAI.
+
+El contrato de respuesta de `/image/generate` se mantiene igual independientemente
+del provider: `{ uuid, filename, fileUrl, createdAt }`.
+
+> **Nota:** `/image/generate-with-image` (edición imagen-a-imagen) usa solo OpenAI
+> `images.edit`; Segmind Imagen 4 Fast es solo texto-a-imagen.
+
+#### Probar localmente con OpenAI
+
+```env
+IMAGE_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+```
+
+```bash
+npm run start:dev
+# POST /image/generate  (con JWT)  body: { "prompt": "un zorro cyberpunk" }
+```
+
+#### Probar localmente con Segmind
+
+```env
+IMAGE_PROVIDER=segmind
+SEGMIND_API_KEY=sg-...
+SEGMIND_DEFAULT_ASPECT_RATIO=16:9
+```
+
+```bash
+npm run start:dev
+# POST /image/generate  (con JWT)
+# body: { "prompt": "un zorro cyberpunk", "aspectRatio": "16:9", "negativePrompt": "blurry" }
+```
 
 ### Flujo de edición de imágenes
 

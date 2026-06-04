@@ -1,18 +1,98 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { ImageService } from './image.service';
+import { StorageService } from '../storage/storage.service';
+import { ImageProviderFactory } from './providers/image-provider.factory';
+import { ImageGenerationResult } from './providers/image-provider.types';
 
 describe('ImageService', () => {
-  let service: ImageService;
+  const config = {
+    get: (key: string) => (key === 'OPENAI_API_KEY' ? 'test-key' : undefined),
+  } as unknown as ConfigService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [ImageService],
-    }).compile();
+  let storage: jest.Mocked<Pick<StorageService, 'uploadImage' | 'getSignedReadUrl'>>;
 
-    service = module.get<ImageService>(ImageService);
+  beforeEach(() => {
+    storage = {
+      uploadImage: jest.fn().mockResolvedValue({
+        filename: 'uuid-1/2026-06-04/abc.png',
+        storagePath: 'uuid-1/2026-06-04/abc.png',
+      }),
+      getSignedReadUrl: jest.fn().mockResolvedValue('https://signed.example/abc.png'),
+    } as any;
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  const segmindResult: ImageGenerationResult = {
+    b64: Buffer.from('image-bytes').toString('base64'),
+    contentType: 'image/png',
+    model: 'imagen-4-fast',
+    provider: 'segmind',
+  };
+
+  function buildFactory(overrides: Partial<ImageProviderFactory>): ImageProviderFactory {
+    return {
+      getProvider: jest.fn(),
+      getFallbackProvider: jest.fn(),
+      isFallbackEnabled: jest.fn().mockReturnValue(false),
+      ...overrides,
+    } as unknown as ImageProviderFactory;
+  }
+
+  it('mantiene el contrato { uuid, filename, fileUrl, createdAt }', async () => {
+    const provider = { name: 'segmind', generate: jest.fn().mockResolvedValue(segmindResult) };
+    const factory = buildFactory({ getProvider: () => provider as any });
+
+    const service = new ImageService(config, storage as any, factory);
+    const res = await service.generateAndStoreImage({ prompt: 'hola', uuid: 'uuid-1' });
+
+    expect(Object.keys(res).sort()).toEqual(['createdAt', 'fileUrl', 'filename', 'uuid']);
+    expect(res.uuid).toBe('uuid-1');
+    expect(res.filename).toBe('uuid-1/2026-06-04/abc.png');
+    expect(res.fileUrl).toBe('https://signed.example/abc.png');
+    expect(res.createdAt).toBeInstanceOf(Date);
+    expect(storage.uploadImage).toHaveBeenCalledWith(
+      expect.objectContaining({ uuid: 'uuid-1', contentType: 'image/png', ext: 'png' }),
+    );
+  });
+
+  it('exige prompt y uuid', async () => {
+    const factory = buildFactory({ getProvider: () => ({ name: 'openai', generate: jest.fn() }) as any });
+    const service = new ImageService(config, storage as any, factory);
+
+    await expect(service.generateAndStoreImage({ prompt: '  ', uuid: 'x' })).rejects.toThrow();
+    await expect(service.generateAndStoreImage({ prompt: 'ok', uuid: '' })).rejects.toThrow();
+  });
+
+  it('hace fallback a OpenAI cuando Segmind falla y el fallback está habilitado', async () => {
+    const segmind = { name: 'segmind', generate: jest.fn().mockRejectedValue(new Error('boom')) };
+    const openai = {
+      name: 'openai',
+      generate: jest.fn().mockResolvedValue({ ...segmindResult, provider: 'openai' }),
+    };
+    const factory = buildFactory({
+      getProvider: () => segmind as any,
+      getFallbackProvider: () => openai as any,
+      isFallbackEnabled: () => true,
+    });
+
+    const service = new ImageService(config, storage as any, factory);
+    const res = await service.generateAndStoreImage({ prompt: 'hola', uuid: 'uuid-1' });
+
+    expect(segmind.generate).toHaveBeenCalledTimes(1);
+    expect(openai.generate).toHaveBeenCalledTimes(1);
+    expect(res.uuid).toBe('uuid-1');
+  });
+
+  it('NO hace fallback cuando está deshabilitado', async () => {
+    const segmind = { name: 'segmind', generate: jest.fn().mockRejectedValue(new Error('boom')) };
+    const openai = { name: 'openai', generate: jest.fn() };
+    const factory = buildFactory({
+      getProvider: () => segmind as any,
+      getFallbackProvider: () => openai as any,
+      isFallbackEnabled: () => false,
+    });
+
+    const service = new ImageService(config, storage as any, factory);
+    await expect(service.generateAndStoreImage({ prompt: 'hola', uuid: 'uuid-1' })).rejects.toThrow();
+    expect(openai.generate).not.toHaveBeenCalled();
   });
 });
