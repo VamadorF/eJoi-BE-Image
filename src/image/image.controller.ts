@@ -4,9 +4,9 @@ import { ImageService } from './image.service';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
-import { LlmService } from "../llm/llm.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ApiTags, ApiOperation } from "@nestjs/swagger";
+import { ImageAspectRatio } from "./providers/image-provider.types";
 
 @ApiTags('image')
 @Controller('image')
@@ -15,21 +15,20 @@ export class ImageController {
 
     constructor(
         private readonly imageService: ImageService,
-        private readonly llm: LlmService,
         @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     ) { }
 
     @Post("generate")
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Generar y almacenar una imagen' })
-    async generateAndStoreImage(@Body() body: { prompt: string; userId?: string; companionId?: string, uuid?: string }) {
+    async generateAndStoreImage(@Body() body: { prompt: string; userId?: string; companionId?: string, uuid?: string, negativePrompt?: string, aspectRatio?: ImageAspectRatio }) {
         const prompt = body?.prompt ?? "Un logo extraordinario en una noche cyberpunk con un cartel de neon que dice eJoi!";
 
         const uuid = body?.uuid ? body.uuid :  (body?.companionId || body?.userId) || undefined;
 
         this.logger.log("Received request to generate image with uuid:", uuid);
 
-        const result = await this.llm.generateAndStoreImage({
+        const result = await this.imageService.generateAndStoreImage({
             uuid,
             prompt,
             model: "gpt-image-1-mini",
@@ -37,6 +36,8 @@ export class ImageController {
             size: "1024x1024",
             outputFormat: "png",
             timeoutMs: 30000,
+            negativePrompt: body?.negativePrompt,
+            aspectRatio: body?.aspectRatio,
         });
 
         return {

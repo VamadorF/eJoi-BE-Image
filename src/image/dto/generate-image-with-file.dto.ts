@@ -32,5 +32,13 @@ export class GenerateImageWithFileDto {
   @IsOptional()
   @IsEnum(['vivid', 'natural'])
   style?: ImageStyle = 'vivid';
+
+  @IsOptional()
+  @IsString()
+  negativePrompt?: string;
+
+  @IsOptional()
+  @IsEnum(['1:1', '4:3', '3:4', '9:16', '16:9'])
+  aspectRatio?: '1:1' | '4:3' | '3:4' | '9:16' | '16:9';
 }
 
