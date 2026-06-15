@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ImageController } from './image.controller';
 import { ImageService } from './image.service';
 
@@ -11,7 +10,6 @@ describe('ImageController', () => {
       controllers: [ImageController],
       providers: [
         { provide: ImageService, useValue: { generateAndStoreImage: jest.fn(), generateImageWithFile: jest.fn() } },
-        { provide: CACHE_MANAGER, useValue: { get: jest.fn(), set: jest.fn() } },
       ],
     }).compile();
 

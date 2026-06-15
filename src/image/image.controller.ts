@@ -1,9 +1,7 @@
-import { BadRequestException, Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Inject, Logger } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post, HttpCode, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Logger } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImageService } from './image.service';
 import { GenerateImageWithFileDto } from './dto/generate-image-with-file.dto';
-import { CACHE_MANAGER } from "@nestjs/cache-manager";
-import { Cache } from "cache-manager";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { ApiTags, ApiOperation } from "@nestjs/swagger";
 import { ImageAspectRatio } from "./providers/image-provider.types";
@@ -15,7 +13,6 @@ export class ImageController {
 
     constructor(
         private readonly imageService: ImageService,
-        @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     ) { }
 
     @Post("generate")
