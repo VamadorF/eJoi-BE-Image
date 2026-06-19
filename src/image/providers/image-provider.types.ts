@@ -1,4 +1,4 @@
-export type ImageProviderName = 'openai' | 'segmind';
+export type ImageProviderName = 'openai' | 'segmind' | 'flux';
 
 export type ImageAspectRatio = '1:1' | '4:3' | '3:4' | '9:16' | '16:9';
 

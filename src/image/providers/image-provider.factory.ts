@@ -3,8 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { ImageProvider, ImageProviderName } from './image-provider.types';
 import { OpenAiImageProvider } from './openai-image.provider';
 import { SegmindImageProvider } from './segmind-image.provider';
+import { FluxImageProvider } from './flux-image.provider';
 
-const VALID_PROVIDERS: ImageProviderName[] = ['openai', 'segmind'];
+const VALID_PROVIDERS: ImageProviderName[] = ['openai', 'segmind', 'flux'];
 
 @Injectable()
 export class ImageProviderFactory {
@@ -14,6 +15,7 @@ export class ImageProviderFactory {
     private readonly config: ConfigService,
     private readonly openAiProvider: OpenAiImageProvider,
     private readonly segmindProvider: SegmindImageProvider,
+    private readonly fluxProvider: FluxImageProvider,
   ) {}
 
   /** Provider principal según IMAGE_PROVIDER (default: openai). */
@@ -29,7 +31,9 @@ export class ImageProviderFactory {
       return this.openAiProvider;
     }
 
-    return configured === 'segmind' ? this.segmindProvider : this.openAiProvider;
+    if (configured === 'segmind') return this.segmindProvider;
+    if (configured === 'flux') return this.fluxProvider;
+    return this.openAiProvider;
   }
 
   /** Provider de respaldo para el fallback (OpenAI). */
