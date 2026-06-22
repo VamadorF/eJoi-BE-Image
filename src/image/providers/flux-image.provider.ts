@@ -8,16 +8,14 @@ import {
 } from './image-provider.types';
 
 const REPLICATE_API = 'https://api.replicate.com/v1';
-const FLUX_MODEL = 'black-forest-labs/flux-schnell';
-const DEFAULT_GUIDANCE_SCALE = 3.5;
-const DEFAULT_NUM_INFERENCE_STEPS = 4;
+const FLUX_MODEL = 'black-forest-labs/flux-2-dev';
 const DEFAULT_TIMEOUT_MS = 60000;
 const POLL_INTERVAL_MS = 1000;
 
 interface ReplicatePrediction {
   id: string;
   status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
-  output?: string[];
+  output?: string | string[];
   error?: string;
 }
 
@@ -49,20 +47,11 @@ export class FluxImageProvider implements ImageProvider {
       throw new InternalServerErrorException('Flux: prompt vacío.');
     }
 
-    const guidanceScale =
-      parseFloat(
-        this.config.get<string>('FLUX_DEFAULT_GUIDANCE_SCALE') ??
-          String(DEFAULT_GUIDANCE_SCALE),
-      ) || DEFAULT_GUIDANCE_SCALE;
-    const numInferenceSteps =
-      parseInt(
-        this.config.get<string>('FLUX_DEFAULT_NUM_INFERENCE_STEPS') ??
-          String(DEFAULT_NUM_INFERENCE_STEPS),
-        10,
-      ) || DEFAULT_NUM_INFERENCE_STEPS;
     const goFast =
       this.config.get<string>('FLUX_GO_FAST')?.trim().toLowerCase() !== 'false';
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const outputFormat =
+      input.outputFormat === 'jpeg' ? 'jpg' : input.outputFormat ?? 'webp';
 
     const version = await this.resolveModelVersion(apiKey);
 
@@ -70,10 +59,9 @@ export class FluxImageProvider implements ImageProvider {
       version,
       input: {
         prompt,
-        negative_prompt: input.negativePrompt ?? '',
-        guidance_scale: guidanceScale,
-        num_inference_steps: numInferenceSteps,
         go_fast: goFast,
+        aspect_ratio: input.aspectRatio ?? '1:1',
+        output_format: outputFormat,
       },
     };
 
@@ -207,7 +195,9 @@ export class FluxImageProvider implements ImageProvider {
       this.logger.debug(`Flux prediction status: ${prediction.status}`);
 
       if (prediction.status === 'succeeded') {
-        const url = prediction.output?.[0];
+        const url = Array.isArray(prediction.output)
+          ? prediction.output[0]
+          : prediction.output;
         if (!url || typeof url !== 'string') {
           throw new Error('Flux prediction succeeded but no output URL');
         }
