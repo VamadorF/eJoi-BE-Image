@@ -1,9 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ImageProvider, ImageProviderName } from './image-provider.types';
+import {
+  ImageGenerationInput,
+  ImageProvider,
+  ImageProviderName,
+} from './image-provider.types';
 import { OpenAiImageProvider } from './openai-image.provider';
 import { SegmindImageProvider } from './segmind-image.provider';
 import { FluxImageProvider } from './flux-image.provider';
+import { AnillustriousImageProvider } from './anillustrious-image.provider';
+import { AnimePromptDetector } from './anime-prompt.detector';
 
 const VALID_PROVIDERS: ImageProviderName[] = ['openai', 'segmind', 'flux'];
 
@@ -16,7 +22,22 @@ export class ImageProviderFactory {
     private readonly openAiProvider: OpenAiImageProvider,
     private readonly segmindProvider: SegmindImageProvider,
     private readonly fluxProvider: FluxImageProvider,
+    private readonly anillustriousProvider: AnillustriousImageProvider,
+    private readonly animeDetector: AnimePromptDetector,
   ) {}
+
+  /**
+   * Resuelve el provider según el estilo del prompt:
+   * - Prompts anime → Anillustrious (modelo dedicado).
+   * - Resto → provider configurado vía IMAGE_PROVIDER (getProvider()).
+   */
+  getProviderForInput(input: ImageGenerationInput): ImageProvider {
+    if (this.animeDetector.isAnimePrompt(input.prompt)) {
+      this.logger.log('Prompt anime detectado: usando provider Anillustrious');
+      return this.anillustriousProvider;
+    }
+    return this.getProvider();
+  }
 
   /** Provider principal según IMAGE_PROVIDER (default: openai). */
   getProvider(): ImageProvider {
