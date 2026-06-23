@@ -70,7 +70,7 @@ export class ImageService {
     private async generateWithFallback(
         input: ImageGenerationInput,
     ): Promise<ImageGenerationResult> {
-        const primary = this.providerFactory.getProvider();
+        const primary = this.providerFactory.getProvider(input.prompt);
         this.logger.log(`Provider seleccionado: ${primary.name}`);
 
         try {

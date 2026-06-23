@@ -9,6 +9,8 @@ describe('ImageService', () => {
     get: (key: string) => (key === 'OPENAI_API_KEY' ? 'test-key' : undefined),
   } as unknown as ConfigService;
 
+  const llm = { generateImage: jest.fn() };
+
   let storage: jest.Mocked<Pick<StorageService, 'uploadImage' | 'getSignedReadUrl'>>;
 
   beforeEach(() => {
@@ -41,7 +43,7 @@ describe('ImageService', () => {
     const provider = { name: 'segmind', generate: jest.fn().mockResolvedValue(segmindResult) };
     const factory = buildFactory({ getProvider: () => provider as any });
 
-    const service = new ImageService(config, storage as any, factory);
+    const service = new ImageService(llm as any, storage as any, config, factory);
     const res = await service.generateAndStoreImage({ prompt: 'hola', uuid: 'uuid-1' });
 
     expect(Object.keys(res).sort()).toEqual(['createdAt', 'fileUrl', 'filename', 'uuid']);
@@ -56,7 +58,7 @@ describe('ImageService', () => {
 
   it('exige prompt y uuid', async () => {
     const factory = buildFactory({ getProvider: () => ({ name: 'openai', generate: jest.fn() }) as any });
-    const service = new ImageService(config, storage as any, factory);
+    const service = new ImageService(llm as any, storage as any, config, factory);
 
     await expect(service.generateAndStoreImage({ prompt: '  ', uuid: 'x' })).rejects.toThrow();
     await expect(service.generateAndStoreImage({ prompt: 'ok', uuid: '' })).rejects.toThrow();
@@ -74,7 +76,7 @@ describe('ImageService', () => {
       isFallbackEnabled: () => true,
     });
 
-    const service = new ImageService(config, storage as any, factory);
+    const service = new ImageService(llm as any, storage as any, config, factory);
     const res = await service.generateAndStoreImage({ prompt: 'hola', uuid: 'uuid-1' });
 
     expect(segmind.generate).toHaveBeenCalledTimes(1);
@@ -91,7 +93,7 @@ describe('ImageService', () => {
       isFallbackEnabled: () => false,
     });
 
-    const service = new ImageService(config, storage as any, factory);
+    const service = new ImageService(llm as any, storage as any, config, factory);
     await expect(service.generateAndStoreImage({ prompt: 'hola', uuid: 'uuid-1' })).rejects.toThrow();
     expect(openai.generate).not.toHaveBeenCalled();
   });
