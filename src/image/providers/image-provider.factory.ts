@@ -4,6 +4,7 @@ import { ImageProvider, ImageProviderName } from './image-provider.types';
 import { OpenAiImageProvider } from './openai-image.provider';
 import { SegmindImageProvider } from './segmind-image.provider';
 import { FluxImageProvider } from './flux-image.provider';
+import { isAnimePrompt } from './anime-detection.util';
 
 const VALID_PROVIDERS: ImageProviderName[] = ['openai', 'segmind', 'flux'];
 
@@ -18,8 +19,17 @@ export class ImageProviderFactory {
     private readonly fluxProvider: FluxImageProvider,
   ) {}
 
-  /** Provider principal según IMAGE_PROVIDER (default: openai). */
-  getProvider(): ImageProvider {
+  /**
+   * Provider principal. Si el prompt describe claramente una imagen anime/manga,
+   * se enruta a OpenAI; en caso contrario se resuelve según IMAGE_PROVIDER
+   * (default: openai).
+   */
+  getProvider(prompt?: string): ImageProvider {
+    if (prompt && isAnimePrompt(prompt)) {
+      this.logger.log('Prompt anime detectado: usando provider OpenAI');
+      return this.openAiProvider;
+    }
+
     const configured = (this.config.get<string>('IMAGE_PROVIDER') ?? 'openai')
       .trim()
       .toLowerCase();
