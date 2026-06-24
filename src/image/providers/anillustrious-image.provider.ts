@@ -94,11 +94,11 @@ export class AnillustriousImageProvider implements ImageProvider {
       throw new InternalServerErrorException('Anillustrious: prompt vacío.');
     }
 
-    // Conversión NL → tags Danbooru, SOLO dentro de este flujo. No muta `input`.
-    const anillustriousPrompt =
-      this.transformer.convertToAnillustriousTags(originalPrompt);
+    // Conversión NL → tags Danbooru (positivo + negativo), SOLO dentro de este
+    // flujo. No muta `input`.
+    const { positive, negative } = this.transformer.transform(originalPrompt);
     this.logger.log(
-      `provider=anillustrious transform=applied origLen=${originalPrompt.length} tagsLen=${anillustriousPrompt.length} tags="${anillustriousPrompt.slice(0, 80)}"`,
+      `provider=anillustrious transform=applied origLen=${originalPrompt.length} posLen=${positive.length} negLen=${negative.length}`,
     );
 
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -106,7 +106,7 @@ export class AnillustriousImageProvider implements ImageProvider {
 
     const body = {
       version,
-      input: this.buildInput(anillustriousPrompt, input),
+      input: this.buildInput(positive, negative, input),
     };
 
     this.logger.log(
@@ -150,6 +150,7 @@ export class AnillustriousImageProvider implements ImageProvider {
 
   private buildInput(
     prompt: string,
+    transformerNegative: string,
     input: ImageGenerationInput,
   ): AnillustriousInput {
     const { width, height } = this.resolveDimensions(input.aspectRatio);
@@ -178,17 +179,35 @@ export class AnillustriousImageProvider implements ImageProvider {
       scheduler,
     };
 
-    // negative_prompt específico del provider; nunca se escribe en `input`.
-    const negativePrompt = (
-      input.negativePrompt ??
-      this.config.get<string>('ANILLUSTRIOUS_NEGATIVE_PROMPT') ??
-      ''
-    ).trim();
+    // negative_prompt = merge-all (dedupe): negativos del transformer ∪
+    // input.negativePrompt ∪ ANILLUSTRIOUS_NEGATIVE_PROMPT env. Nunca muta `input`.
+    const negativePrompt = this.mergeNegatives(
+      transformerNegative,
+      input.negativePrompt,
+      this.config.get<string>('ANILLUSTRIOUS_NEGATIVE_PROMPT'),
+    );
     if (negativePrompt) {
       result.negative_prompt = negativePrompt;
     }
 
     return result;
+  }
+
+  /** Une varias listas de tags negativos separadas por comas, dedup case-insensitive. */
+  private mergeNegatives(...sources: (string | undefined)[]): string {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const source of sources) {
+      for (const tag of (source ?? '').split(',')) {
+        const trimmed = tag.trim();
+        const key = trimmed.toLowerCase();
+        if (trimmed && !seen.has(key)) {
+          seen.add(key);
+          out.push(trimmed);
+        }
+      }
+    }
+    return out.join(', ');
   }
 
   private resolveDimensions(aspectRatio?: ImageAspectRatio): {

@@ -1,85 +1,175 @@
 import {
   AnillustriousPromptTransformer,
+  transformAnillustriousPrompt,
   convertToAnillustriousTags,
 } from './anillustrious-prompt.transformer';
 
-describe('convertToAnillustriousTags', () => {
-  it('convierte el ejemplo de referencia a tags Danbooru', () => {
-    const input =
-      'A young woman with long black hair wearing a red dress, standing under cherry blossoms at sunset';
-    const out = convertToAnillustriousTags(input);
+/** Helpers para aserciones sobre listas de tags. */
+const posTags = (prompt: string) =>
+  transformAnillustriousPrompt(prompt).positive.split(',').map((t) => t.trim());
+const negTags = (prompt: string) =>
+  transformAnillustriousPrompt(prompt).negative.split(',').map((t) => t.trim());
 
-    expect(out).toBe(
-      '1girl, solo, long black hair, red dress, standing, cherry blossoms, sunset, anime style, detailed eyes, high quality',
-    );
+describe('transformAnillustriousPrompt — sujeto / género / cantidad', () => {
+  it('woman → 1girl, solo, adult', () => {
+    const t = posTags('a woman with black hair');
+    expect(t).toEqual(expect.arrayContaining(['1girl', 'solo', 'adult']));
   });
 
-  it('produce una salida separada por comas (lista de tags)', () => {
-    const out = convertToAnillustriousTags('an anime boy with spiky blue hair');
-    const tags = out.split(',').map((t) => t.trim());
-    expect(tags).toContain('1boy');
-    expect(tags).toContain('solo');
-    expect(tags).toContain('spiky blue hair');
+  it('man → 1boy, solo, adult', () => {
+    const t = posTags('a man in a business suit');
+    expect(t).toEqual(expect.arrayContaining(['1boy', 'solo', 'adult']));
   });
 
-  it('preserva atributos explícitos (género, pelo, ropa, lugar)', () => {
-    const out = convertToAnillustriousTags(
-      'A man with short brown hair wearing a black suit in a neon city',
-    );
-    expect(out).toContain('1boy');
-    expect(out).toContain('short brown hair');
-    expect(out).toContain('black suit');
-    expect(out).toContain('neon city');
+  it('androgynous person → solo, androgynous, adult', () => {
+    const t = posTags('an androgynous person standing');
+    expect(t).toEqual(expect.arrayContaining(['solo', 'androgynous', 'adult']));
+    expect(t).not.toContain('1girl');
+    expect(t).not.toContain('1boy');
   });
 
-  it('elimina muletillas / frases introductorias', () => {
-    const out = convertToAnillustriousTags(
-      'a photo of a girl with green eyes',
-    );
-    // "a photo of" desaparece; no quedan artículos sueltos como tags.
-    const tags = out.split(',').map((t) => t.trim());
-    expect(tags).not.toContain('a');
-    expect(tags).not.toContain('photo of');
-    expect(tags).toContain('green eyes');
-    expect(tags).toContain('1girl');
+  it('mixto: one woman and one man → 1girl, 1boy y SIN solo', () => {
+    const t = posTags('one woman and one man talking');
+    expect(t).toContain('1girl');
+    expect(t).toContain('1boy');
+    expect(t).not.toContain('solo');
   });
 
-  it('añade tags de calidad seguros una sola vez (sin duplicar)', () => {
-    const out = convertToAnillustriousTags('anime girl, high quality');
-    const occurrences = out
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t) => t === 'high quality').length;
-    expect(occurrences).toBe(1);
-    expect(out).toContain('anime style');
-    expect(out).toContain('detailed eyes');
+  it('two women → 2girls; three men → 3boys; multiple → multiple girls/boys', () => {
+    expect(posTags('two women dancing')).toContain('2girls');
+    expect(posTags('three men walking')).toContain('3boys');
+    expect(posTags('multiple women')).toContain('multiple girls');
+    expect(posTags('multiple men')).toContain('multiple boys');
+    expect(posTags('two women dancing')).not.toContain('solo');
   });
 
   it('no inventa género cuando no se indica', () => {
-    const out = convertToAnillustriousTags('a red sports car on a highway');
-    expect(out).not.toContain('1girl');
-    expect(out).not.toContain('1boy');
-    expect(out).toContain('red sports car');
+    const t = posTags('a red sports car on a highway');
+    expect(t).not.toContain('1girl');
+    expect(t).not.toContain('1boy');
+    expect(t).toContain('red sports car');
+  });
+});
+
+describe('transformAnillustriousPrompt — aliases por categoría', () => {
+  it('composición/anatomía', () => {
+    const t = posTags('upper-body portrait, cel shading, both eyes clearly visible');
+    expect(t).toEqual(
+      expect.arrayContaining(['upper body', 'cel shading', 'looking at viewer']),
+    );
   });
 
-  it('soporta conteo de personajes', () => {
-    expect(convertToAnillustriousTags('two girls dancing')).toContain('2girls');
+  it('expresión/personalidad', () => {
+    const t = posTags('a woman with a warm relaxed smile');
+    expect(t).toEqual(expect.arrayContaining(['smile', 'looking at viewer']));
   });
 
-  it('devuelve una salida usable con entradas cortas o imperfectas', () => {
-    const out = convertToAnillustriousTags('!!!');
-    expect(out.length).toBeGreaterThan(0);
-    expect(out).toContain('anime style');
+  it('iluminación/color', () => {
+    const t = posTags('warm-neutral lighting and vivid colors');
+    expect(t).toEqual(
+      expect.arrayContaining(['warm lighting', 'vibrant colors', 'colorful']),
+    );
   });
 
-  it('no rompe con string vacío', () => {
-    const out = convertToAnillustriousTags('');
-    expect(out).toContain('anime style');
+  it('escenas/intereses (longest-first, sin duplicar)', () => {
+    const t = posTags('evening city street with colorful signs');
+    expect(t).toEqual(
+      expect.arrayContaining(['city street', 'outdoors', 'evening', 'neon signs']),
+    );
+  });
+
+  it('arquetipo: ropa y props', () => {
+    const t = posTags('cheerleader-inspired uniform with pom-poms');
+    expect(t).toEqual(
+      expect.arrayContaining(['cheerleader', 'cheerleader outfit', 'pom pom']),
+    );
+  });
+});
+
+describe('transformAnillustriousPrompt — apariencia/etnia y exclusión mutua', () => {
+  it('mapea solo rasgos explícitos', () => {
+    const t = posTags('olive skin, black hair, straight hair');
+    expect(t).toEqual(
+      expect.arrayContaining(['olive skin', 'black hair', 'straight hair']),
+    );
+  });
+
+  it('peinados afro/coils/locs/braids enumerados ⇒ no emite ninguno', () => {
+    const t = posTags('dark brown skin, black hair, afro, coils, locs, or braids');
+    expect(t).toEqual(expect.arrayContaining(['dark skin', 'black hair']));
+    expect(t).not.toContain('afro');
+    expect(t).not.toContain('braid');
+    expect(t).not.toContain('dreadlocks');
+    expect(t).not.toContain('coiled hair');
+  });
+
+  it('peinado concreto (no enumerado) sí se mapea', () => {
+    expect(posTags('long braids')).toContain('braid');
+  });
+});
+
+describe('transformAnillustriousPrompt — negativos', () => {
+  it('extrae instrucciones "no ..." al negativo y las quita del positivo', () => {
+    const { positive, negative } = transformAnillustriousPrompt(
+      'an anime girl, no text, no watermark, no malformed eyes',
+    );
+    expect(negative).toContain('text');
+    expect(negative).toContain('watermark');
+    expect(negative).toContain('malformed eyes');
+    expect(positive).not.toContain('no text');
+    expect(positive.split(',').map((s) => s.trim())).not.toContain('text');
+  });
+
+  it('siempre incluye el piso NSFW y los negativos globales', () => {
+    const n = negTags('a woman');
+    expect(n).toEqual(
+      expect.arrayContaining([
+        'nsfw',
+        'naked',
+        'photorealistic',
+        'realistic',
+        '3d',
+        'cgi',
+        'text',
+        'watermark',
+      ]),
+    );
+  });
+
+  it('triggers de arquetipo van al negativo y se quitan del positivo', () => {
+    const { positive, negative } = transformAnillustriousPrompt(
+      'an anime girl in a maid outfit',
+    );
+    expect(negative).toContain('maid');
+    expect(positive).not.toContain('maid');
+  });
+});
+
+describe('transformAnillustriousPrompt — base, dedupe y robustez', () => {
+  it('añade tags base seguros una sola vez', () => {
+    const out = transformAnillustriousPrompt('anime girl, high quality').positive;
+    const tags = out.split(',').map((t) => t.trim());
+    expect(tags.filter((t) => t === 'high quality')).toHaveLength(1);
+    expect(tags).toEqual(expect.arrayContaining(['anime', 'high quality', 'detailed eyes']));
+  });
+
+  it('devuelve salida usable con entrada vacía o imperfecta', () => {
+    expect(posTags('')).toEqual(
+      expect.arrayContaining(['anime', 'high quality', 'detailed eyes']),
+    );
+    expect(transformAnillustriousPrompt('!!!').positive.length).toBeGreaterThan(0);
   });
 });
 
 describe('AnillustriousPromptTransformer (injectable)', () => {
-  it('delega en convertToAnillustriousTags', () => {
+  it('transform delega en la función pura', () => {
+    const t = new AnillustriousPromptTransformer();
+    expect(t.transform('an anime girl')).toEqual(
+      transformAnillustriousPrompt('an anime girl'),
+    );
+  });
+
+  it('convertToAnillustriousTags devuelve solo el positivo', () => {
     const t = new AnillustriousPromptTransformer();
     expect(t.convertToAnillustriousTags('an anime girl')).toBe(
       convertToAnillustriousTags('an anime girl'),

@@ -2,7 +2,8 @@ import { ConfigService } from '@nestjs/config';
 import { AnillustriousImageProvider } from './anillustrious-image.provider';
 import { AnillustriousPromptTransformer } from './anillustrious-prompt.transformer';
 
-const SENTINEL_TAGS = '1girl, solo, sentinel tag, anime style';
+const SENTINEL_POSITIVE = '1girl, solo, sentinel tag, anime';
+const SENTINEL_NEGATIVE = 'nsfw, naked, text, watermark';
 
 function makeConfig(
   overrides: Record<string, string | undefined> = {},
@@ -14,10 +15,13 @@ function makeConfig(
   return { get: (key: string) => base[key] } as unknown as ConfigService;
 }
 
-/** Transformer stub que devuelve un sentinel para verificar el paso de tags. */
-function makeTransformer(returnValue = SENTINEL_TAGS) {
+/** Transformer stub que devuelve positive/negative sentinel para verificar el wiring. */
+function makeTransformer(
+  positive = SENTINEL_POSITIVE,
+  negative = SENTINEL_NEGATIVE,
+) {
   return {
-    convertToAnillustriousTags: jest.fn().mockReturnValue(returnValue),
+    transform: jest.fn().mockReturnValue({ positive, negative }),
   } as unknown as AnillustriousPromptTransformer;
 }
 
@@ -75,7 +79,7 @@ describe('AnillustriousImageProvider', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('envía a Replicate el prompt CONVERTIDO a tags (no el original)', async () => {
+  it('envía a Replicate el positive CONVERTIDO y el negative del transformer', async () => {
     mockHappyPath(fetchMock);
     const transformer = makeTransformer();
     const provider = new AnillustriousImageProvider(makeConfig(), transformer);
@@ -83,15 +87,35 @@ describe('AnillustriousImageProvider', () => {
     await provider.generate({ prompt: 'a young woman in a red dress' });
 
     // El transformer recibió el prompt original.
-    expect(transformer.convertToAnillustriousTags).toHaveBeenCalledWith(
+    expect(transformer.transform).toHaveBeenCalledWith(
       'a young woman in a red dress',
     );
 
-    // El body de la predicción usa los tags convertidos.
+    // El body de la predicción usa el positive convertido + negative del transformer.
     const createBody = JSON.parse(fetchMock.mock.calls[1][1].body);
-    expect(createBody.input.prompt).toBe(SENTINEL_TAGS);
+    expect(createBody.input.prompt).toBe(SENTINEL_POSITIVE);
+    expect(createBody.input.negative_prompt).toBe(SENTINEL_NEGATIVE);
     expect(createBody.version).toBe('ver-123');
     expect(createBody.input.model).toBe('Anillustrious-v4');
+  });
+
+  it('mergea el negative del transformer con input.negativePrompt y env (dedupe)', async () => {
+    mockHappyPath(fetchMock);
+    const provider = new AnillustriousImageProvider(
+      makeConfig({ ANILLUSTRIOUS_NEGATIVE_PROMPT: 'lowres, text' }),
+      makeTransformer('1girl', 'nsfw, naked, text'),
+    );
+
+    await provider.generate({
+      prompt: 'anime girl',
+      negativePrompt: 'blurry, naked',
+    });
+
+    const negative = JSON.parse(fetchMock.mock.calls[1][1].body).input
+      .negative_prompt;
+    const tags = negative.split(',').map((t: string) => t.trim());
+    // Union sin duplicados de: transformer + input + env.
+    expect(tags).toEqual(['nsfw', 'naked', 'text', 'blurry', 'lowres']);
   });
 
   it('NO muta el objeto request original (input.prompt intacto)', async () => {
@@ -131,7 +155,8 @@ describe('AnillustriousImageProvider', () => {
     expect(createBody.input.steps).toBe(16);
     expect(createBody.input.cfg_scale).toBe(7);
     expect(createBody.input.scheduler).toBe('LCMScheduler Karras');
-    expect(createBody.input.negative_prompt).toBeUndefined();
+    // Sin input/env negativos → se envía exactamente el negative del transformer.
+    expect(createBody.input.negative_prompt).toBe(SENTINEL_NEGATIVE);
   });
 
   it('lanza error cuando la predicción falla', async () => {
