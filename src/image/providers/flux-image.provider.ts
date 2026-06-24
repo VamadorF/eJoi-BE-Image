@@ -47,8 +47,10 @@ export class FluxImageProvider implements ImageProvider {
       throw new InternalServerErrorException('Flux: prompt vacío.');
     }
 
+    // go_fast desactivado por defecto: flux-2-dev falla con el path FP8
+    // (q_descale must have shape ...). Solo se activa con FLUX_GO_FAST=true.
     const goFast =
-      this.config.get<string>('FLUX_GO_FAST')?.trim().toLowerCase() !== 'false';
+      this.config.get<string>('FLUX_GO_FAST')?.trim().toLowerCase() === 'true';
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const outputFormat =
       input.outputFormat === 'jpeg' ? 'jpg' : input.outputFormat ?? 'webp';
