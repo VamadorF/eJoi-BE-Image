@@ -16,7 +16,7 @@ import { Injectable } from '@nestjs/common';
  *  4. Aplicar aliases de frases largas a tags canónicos (consumo longest-first).
  *  5. Recuperar tags simples válidos restantes.
  *  6. Deduplicar y ordenar por categoría.
- *  7. Añadir solo tags base seguros.
+ *  7. Añadir `masterpiece` como primer tag.
  *  8. Construir positive y negative por separado.
  */
 
@@ -29,8 +29,8 @@ type AliasEntry = [phrase: string, tags: string[]];
 
 // ───────────────────────── Diccionarios ─────────────────────────
 
-/** Tags base seguros (se añaden solo si faltan; conjunto pequeño). */
-const SAFE_POSITIVE_TAGS = ['anime', 'high quality', 'detailed eyes'];
+/** Único tag obligatorio; no introduce atributos visuales nuevos. */
+const REQUIRED_POSITIVE_TAGS = ['masterpiece'];
 
 /** Piso de seguridad NSFW + negativos globales (siempre presentes). */
 const NSFW_FLOOR = ['nsfw', 'naked'];
@@ -84,13 +84,13 @@ const COMPOSITION_ANATOMY: AliasEntry[] = [
   ['portrait composition', ['portrait']],
   ['both eyes clearly visible', ['looking at viewer']],
   ['direct eye contact', ['looking at viewer']],
-  ['detailed anime eyes', ['detailed eyes']],
-  ['expressive anime eyes', ['detailed eyes']],
+  ['detailed anime eyes', ['detailed anime eyes']],
+  ['expressive anime eyes', ['detailed anime eyes']],
   ['glossy catchlights', ['eye reflection']],
   ['catchlights', ['eye reflection']],
   ['delicate eyelashes', ['eyelashes']],
   ['soft blush', ['blush']],
-  ['layered hair', ['layered hair', 'detailed hair']],
+  ['layered hair', ['layered hair']],
   ['separated hair strands', ['hair strands']],
   ['crisp line art', ['lineart']],
   ['clean line art', ['lineart']],
@@ -111,7 +111,10 @@ const PERSONALITY_EXPRESSION: AliasEntry[] = [
   ['gentle caring expression', ['gentle smile', 'soft expression']],
   ['lively expression', ['energetic', 'smile']],
   ['energetic expression', ['energetic', 'smile']],
-  ['soft expression and relaxed posture', ['soft expression', 'relaxed posture']],
+  [
+    'soft expression and relaxed posture',
+    ['soft expression', 'relaxed posture'],
+  ],
   ['strong eye contact', ['looking at viewer', 'intense gaze']],
   ['confident but approachable', ['confident', 'smile']],
 ];
@@ -124,8 +127,8 @@ const LIGHTING_COLOR: AliasEntry[] = [
   ['bright clean lighting', ['bright lighting']],
   ['dramatic lighting', ['dramatic lighting']],
   ['directional side light', ['side lighting']],
-  ['vivid colors', ['vibrant colors', 'colorful']],
-  ['saturated colors', ['vibrant colors', 'colorful']],
+  ['vivid colors', ['vibrant colors']],
+  ['saturated colors', ['vibrant colors']],
   ['crisp contrast', ['high contrast']],
   ['rim light', ['rim lighting']],
 ];
@@ -208,12 +211,12 @@ const ARCHETYPE_CLOTHING_PROPS: AliasEntry[] = [
 /** Apariencia/etnia: solo rasgos explícitos. Los peinados afro/coils/locs/braids
  *  son alternativas mutuamente excluyentes (ver lógica de blacklist). */
 const APPEARANCE_ETHNICITY: AliasEntry[] = [
-  ['olive skin', ['tan']],
+  ['olive skin', ['olive skin']],
   ['tan skin', ['tan']],
   ['pale skin', ['pale skin']],
   ['fair skin', ['pale skin']],
-  ['dark brown skin', ['dark skin']],
-  ['deep brown skin', ['dark skin']],
+  ['dark brown skin', ['deep brown skin']],
+  ['deep brown skin', ['deep brown skin']],
   ['brown skin', ['brown skin']],
   ['dark skin', ['dark skin']],
   ['black hair', ['black hair']],
@@ -276,28 +279,201 @@ const NEGATIVE_ALIASES: AliasEntry[] = [
 ];
 
 const NEGATIVE_STARTERS = ['no ', 'without ', 'avoid ', 'never ', 'not '];
+const NEGATIVE_INSTRUCTION_STARTERS = [
+  'should not ',
+  'must not ',
+  ...NEGATIVE_STARTERS,
+];
 
 const FILLER_TOKENS = new Set([
-  'a', 'an', 'the', 'of', 'that', 'this', 'is', 'are', 'was', 'were', 'be',
-  'very', 'really', 'some', 'to', 'as', 'it', 'its', 'their', 'while', 'who',
+  'a',
+  'an',
+  'the',
+  'of',
+  'that',
+  'this',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'very',
+  'really',
+  'some',
+  'to',
+  'as',
+  'it',
+  'its',
+  'their',
+  'while',
+  'who',
+  'such',
+  'especially',
+  'should',
+  'must',
+  'have',
+  'include',
+  'show',
+  'display',
+]);
+
+const DANGLING_TOKENS = new Set([
+  'and',
+  'or',
+  'such',
+  'especially',
+  'should',
+  'must',
 ]);
 
 const SUBJECT_TOKENS = new Set([
-  'woman', 'women', 'girl', 'girls', 'man', 'men', 'boy', 'boys', 'female',
-  'male', 'lady', 'ladies', 'guy', 'guys', 'person', 'people', 'she', 'he',
-  'her', 'his', 'they', 'androgynous', 'adult', 'young', 'old',
+  'woman',
+  'women',
+  'girl',
+  'girls',
+  'man',
+  'men',
+  'boy',
+  'boys',
+  'female',
+  'male',
+  'lady',
+  'ladies',
+  'guy',
+  'guys',
+  'person',
+  'people',
+  'she',
+  'he',
+  'her',
+  'his',
+  'they',
+  'androgynous',
+  'adult',
+  'young',
+  'old',
 ]);
 
 /** Conectores en lenguaje natural → separador de fragmentos en la recuperación. */
 const CONNECTORS = [
-  ' wearing ', ' dressed in ', ' with ', ' featuring ', ' under ', ' at ',
-  ' in front of ', ' next to ', ' beside ', ' near ', ' against ',
-  ' surrounded by ', ' holding ', ' and ', ' in ', ' on ',
+  ' wearing ',
+  ' dressed in ',
+  ' with ',
+  ' featuring ',
+  ' under ',
+  ' at ',
+  ' in front of ',
+  ' next to ',
+  ' beside ',
+  ' near ',
+  ' against ',
+  ' surrounded by ',
+  ' holding ',
+  ' and ',
+  ' in ',
+  ' on ',
 ];
 
 const NUMBER_WORDS: Record<string, number> = {
-  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
 };
+
+type PositiveCategory =
+  | 'composition'
+  | 'appearance'
+  | 'expression'
+  | 'hairEyes'
+  | 'clothing'
+  | 'lighting'
+  | 'style'
+  | 'background';
+
+interface ReductionRule {
+  phrase: string;
+  category: PositiveCategory;
+  tags: string[];
+}
+
+const POSITIVE_REDUCTIONS: ReductionRule[] = [
+  {
+    phrase: 'modern high quality anime character illustration',
+    category: 'style',
+    tags: ['high quality', 'modern anime illustration'],
+  },
+  {
+    phrase:
+      'expressive detailed anime eyes with layered iris colors, glossy highlights, and subtle reflective depth',
+    category: 'hairEyes',
+    tags: ['detailed anime eyes', 'layered irises', 'glossy highlights'],
+  },
+  {
+    phrase:
+      'dynamic layered hair silhouette with many separated strands, sharp highlights, and deep shadow shapes',
+    category: 'hairEyes',
+    tags: [
+      'layered hair',
+      'separated strands',
+      'sharp highlights',
+      'deep shadows',
+    ],
+  },
+  {
+    phrase: 'clean stylized neck and shoulder proportions',
+    category: 'appearance',
+    tags: ['natural neck and shoulder proportions'],
+  },
+  {
+    phrase:
+      'polished high detail modern anime key visual style, contemporary anime character art',
+    category: 'style',
+    tags: ['polished modern anime key visual'],
+  },
+  {
+    phrase: 'black african descent, deep dark brown or rich tone',
+    category: 'appearance',
+    tags: ['black woman', 'african descent', 'deep brown skin'],
+  },
+  {
+    phrase:
+      'stylish contemporary casual outfit, such fitted jacket, soft knit sweater, simple blouse, hoodie, or modern streetwear inspired top',
+    category: 'clothing',
+    tags: [
+      'contemporary casual outfit',
+      'jacket',
+      'sweater',
+      'blouse',
+      'hoodie',
+    ],
+  },
+  {
+    phrase: 'modern anime character illustration',
+    category: 'style',
+    tags: ['modern anime illustration'],
+  },
+  {
+    phrase: 'contemporary anime character art',
+    category: 'style',
+    tags: ['modern anime illustration'],
+  },
+];
+
+const EQUIVALENT_TAG_GROUPS: string[][] = [
+  [
+    'polished modern anime key visual',
+    'modern anime illustration',
+    'modern anime',
+    'anime',
+  ],
+  ['detailed anime eyes', 'detailed eyes', 'expressive anime eyes'],
+  ['deep brown skin', 'dark brown skin', 'dark skin', 'brown skin'],
+  ['vibrant colors', 'colorful', 'saturated colors', 'vivid colors'],
+  ['lineart', 'clean line art', 'crisp line art'],
+];
 
 // ───────────────────────── Helpers ─────────────────────────
 
@@ -326,6 +502,40 @@ function dedupe(tags: string[]): string[] {
       out.push(tag);
     }
   }
+  return out;
+}
+
+function dedupeEquivalent(tags: string[]): string[] {
+  const out: string[] = [];
+  const groupPositions = new Map<number, number>();
+  const groupRanks = new Map<number, number>();
+
+  for (const tag of dedupe(tags)) {
+    const key = tag.toLowerCase();
+    const groupIndex = EQUIVALENT_TAG_GROUPS.findIndex((group) =>
+      group.includes(key),
+    );
+
+    if (groupIndex === -1) {
+      out.push(tag);
+      continue;
+    }
+
+    const rank = EQUIVALENT_TAG_GROUPS[groupIndex].indexOf(key);
+    const position = groupPositions.get(groupIndex);
+    if (position === undefined) {
+      groupPositions.set(groupIndex, out.length);
+      groupRanks.set(groupIndex, rank);
+      out.push(tag);
+      continue;
+    }
+
+    if (rank < (groupRanks.get(groupIndex) ?? Number.MAX_SAFE_INTEGER)) {
+      out[position] = tag;
+      groupRanks.set(groupIndex, rank);
+    }
+  }
+
   return out;
 }
 
@@ -444,7 +654,96 @@ function fragmentToTag(fragment: string): string {
     .map((t) => t.trim())
     .filter(Boolean)
     .filter((t) => !FILLER_TOKENS.has(t) && !SUBJECT_TOKENS.has(t));
+
+  while (tokens.length && DANGLING_TOKENS.has(tokens[0])) tokens.shift();
+  while (tokens.length && DANGLING_TOKENS.has(tokens[tokens.length - 1])) {
+    tokens.pop();
+  }
+
   return tokens.join(' ').trim();
+}
+
+function classifyTag(tag: string): PositiveCategory {
+  if (
+    /\b(?:portrait|upper body|cowboy shot|looking at viewer|eye contact|pose|posture|proportions)\b/.test(
+      tag,
+    )
+  ) {
+    return 'composition';
+  }
+  if (
+    /\b(?:skin|descent|african|tan|pale|neck|shoulder|body|face)\b/.test(tag)
+  ) {
+    return 'appearance';
+  }
+  if (
+    /\b(?:smile|laughing|mouth|pensive|relaxed|serious|focused|curious|expression|confident|gaze|energetic)\b/.test(
+      tag,
+    )
+  ) {
+    return 'expression';
+  }
+  if (/\b(?:hair|eye|eyes|iris|irises|eyelashes|strands)\b/.test(tag)) {
+    return 'hairEyes';
+  }
+  if (
+    /\b(?:outfit|clothes|shirt|blouse|skirt|suit|jacket|sweater|hoodie|uniform|apron|fashion|tie|overshirt|bracelet|watch|belt)\b/.test(
+      tag,
+    )
+  ) {
+    return 'clothing';
+  }
+  if (
+    /\b(?:lighting|light|highlights|shadows|contrast|colors|colorful)\b/.test(
+      tag,
+    )
+  ) {
+    return 'lighting';
+  }
+  if (
+    /\b(?:anime|illustration|key visual|lineart|cel shading|gradient shading|quality|artstyle|polished)\b/.test(
+      tag,
+    )
+  ) {
+    return 'style';
+  }
+  return 'background';
+}
+
+function orderPositiveTags(
+  subjectTags: string[],
+  tags: string[],
+  categoryOverrides: Map<string, PositiveCategory>,
+): string[] {
+  const categories: Record<PositiveCategory, string[]> = {
+    composition: [],
+    appearance: [],
+    expression: [],
+    hairEyes: [],
+    clothing: [],
+    lighting: [],
+    style: [],
+    background: [],
+  };
+
+  for (const tag of tags) {
+    const category =
+      categoryOverrides.get(tag.toLowerCase()) ?? classifyTag(tag);
+    categories[category].push(tag);
+  }
+
+  return dedupeEquivalent([
+    ...REQUIRED_POSITIVE_TAGS,
+    ...subjectTags,
+    ...categories.composition,
+    ...categories.appearance,
+    ...categories.expression,
+    ...categories.hairEyes,
+    ...categories.clothing,
+    ...categories.lighting,
+    ...categories.style,
+    ...categories.background,
+  ]);
 }
 
 // ───────────────────────── Pipeline ─────────────────────────
@@ -475,16 +774,39 @@ export function transformAnillustriousPrompt(
     }
   }
 
-  // 2c) Barrido genérico: quitar segmentos que empiezan con no/without/avoid/never/not.
-  working = working
-    .split(',')
-    .map((seg) => seg.trim())
-    .filter((seg) => !NEGATIVE_STARTERS.some((st) => seg.startsWith(st)))
-    .join(', ');
+  // 2c) Barrido genérico: mover instrucciones negativas fuera del positivo.
+  const positiveSegments: string[] = [];
+  for (const rawSegment of working.split(',')) {
+    const segment = rawSegment.trim();
+    const starter = NEGATIVE_INSTRUCTION_STARTERS.find((candidate) =>
+      segment.startsWith(candidate),
+    );
+    if (!starter) {
+      positiveSegments.push(segment);
+      continue;
+    }
+
+    const negativeTag = fragmentToTag(segment.slice(starter.length));
+    if (negativeTag) negativeTags.push(negativeTag);
+  }
+  working = positiveSegments.filter(Boolean).join(', ');
 
   // 3) Sujeto / género / cantidad.
   const subject = detectSubject(working);
   working = stripSubjectWords(working);
+
+  const reducedTags: string[] = [];
+  const categoryOverrides = new Map<string, PositiveCategory>();
+  for (const rule of [...POSITIVE_REDUCTIONS].sort(
+    (a, b) => b.phrase.length - a.phrase.length,
+  )) {
+    if (!hasPhrase(working, rule.phrase)) continue;
+    reducedTags.push(...rule.tags);
+    for (const tag of rule.tags) {
+      categoryOverrides.set(tag.toLowerCase(), rule.category);
+    }
+    working = working.replace(phraseRegex(rule.phrase), ' ');
+  }
 
   // 4) Aliases positivos (longest-first global; buckets por categoría para el orden).
   const exclusiveHairBlacklisted =
@@ -532,9 +854,9 @@ export function transformAnillustriousPrompt(
     .map((frag) => fragmentToTag(frag))
     .filter(Boolean);
 
-  // 6) Ensamblar positivo en orden de categoría + recuperados.
-  let positive = dedupe([
-    ...subject.tags,
+  // 6) Ensamblar, deduplicar y ordenar por categoría.
+  const generatedTags = dedupe([
+    ...reducedTags,
     ...buckets.composition,
     ...buckets.appearance,
     ...buckets.expression,
@@ -543,9 +865,11 @@ export function transformAnillustriousPrompt(
     ...buckets.lighting,
     ...recovered,
   ]);
-
-  // 7) Tags base seguros (solo si faltan).
-  positive = dedupe([...positive, ...SAFE_POSITIVE_TAGS]);
+  const positive = orderPositiveTags(
+    subject.tags,
+    generatedTags,
+    categoryOverrides,
+  );
 
   // 8) Negativo: piso NSFW + globales + extraídos/arquetipo.
   const negative = dedupe([
