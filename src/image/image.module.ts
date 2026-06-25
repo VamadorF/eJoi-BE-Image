@@ -6,6 +6,8 @@ import { LlmModule } from '../llm/llm.module';
 import { OpenAiImageProvider } from './providers/openai-image.provider';
 import { SegmindImageProvider } from './providers/segmind-image.provider';
 import { FluxImageProvider } from './providers/flux-image.provider';
+import { AnillustriousImageProvider } from './providers/anillustrious-image.provider';
+import { AnillustriousPromptTransformer } from './providers/anillustrious-prompt.transformer';
 import { ImageProviderFactory } from './providers/image-provider.factory';
 
 
@@ -16,6 +18,8 @@ import { ImageProviderFactory } from './providers/image-provider.factory';
     OpenAiImageProvider,
     SegmindImageProvider,
     FluxImageProvider,
+    AnillustriousImageProvider,
+    AnillustriousPromptTransformer,
     ImageProviderFactory,
   ],
   controllers: [ImageController],

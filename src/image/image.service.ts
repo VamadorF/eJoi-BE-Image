@@ -85,9 +85,15 @@ export class ImageService {
             const fallbackEnabled = this.providerFactory.isFallbackEnabled();
             const fallback = this.providerFactory.getFallbackProvider();
 
-            if (primary.name === 'segmind' && fallbackEnabled && fallback.name !== primary.name) {
-                this.logger.warn(`Fallback habilitado: reintentando con "${fallback.name}"`);
+            // Anillustrious siempre cae a OpenAI ante un fallo; Segmind respeta el flag.
+            const anillustriousFallback = primary.name === 'anillustrious';
+            const segmindFallback = primary.name === 'segmind' && fallbackEnabled;
+
+            if ((anillustriousFallback || segmindFallback) && fallback.name !== primary.name) {
+                this.logger.warn(`Fallback aplicado: "${primary.name}" → "${fallback.name}"`);
                 try {
+                    // `input.prompt` es el prompt original del frontend (sin transformar):
+                    // la conversión a tags vive solo dentro del provider Anillustrious.
                     const result = await fallback.generate(input);
                     this.logger.log(`Fallback usado correctamente: provider=${fallback.name}`);
                     return result;

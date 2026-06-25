@@ -46,7 +46,13 @@ describe('ImageService', () => {
     const service = new ImageService(llm as any, storage as any, config, factory);
     const res = await service.generateAndStoreImage({ prompt: 'hola', uuid: 'uuid-1' });
 
-    expect(Object.keys(res).sort()).toEqual(['createdAt', 'fileUrl', 'filename', 'uuid']);
+    expect(Object.keys(res).sort()).toEqual([
+      'createdAt',
+      'fileUrl',
+      'filename',
+      'storagePath',
+      'uuid',
+    ]);
     expect(res.uuid).toBe('uuid-1');
     expect(res.filename).toBe('uuid-1/2026-06-04/abc.png');
     expect(res.fileUrl).toBe('https://signed.example/abc.png');
@@ -96,5 +102,36 @@ describe('ImageService', () => {
     const service = new ImageService(llm as any, storage as any, config, factory);
     await expect(service.generateAndStoreImage({ prompt: 'hola', uuid: 'uuid-1' })).rejects.toThrow();
     expect(openai.generate).not.toHaveBeenCalled();
+  });
+
+  it('un fallo de Anillustrious cae a OpenAI con el prompt original (sin flag)', async () => {
+    const animePrompt = 'a cute anime girl with long pink hair';
+    const anillustrious = {
+      name: 'anillustrious',
+      generate: jest.fn().mockRejectedValue(new Error('replicate down')),
+    };
+    const openai = {
+      name: 'openai',
+      generate: jest.fn().mockResolvedValue({ ...segmindResult, provider: 'openai' }),
+    };
+    const factory = buildFactory({
+      getProvider: () => anillustrious as any,
+      getFallbackProvider: () => openai as any,
+      isFallbackEnabled: () => false, // anillustrious cae igual, sin depender del flag
+    });
+
+    const service = new ImageService(llm as any, storage as any, config, factory);
+    const res = await service.generateAndStoreImage({ prompt: animePrompt, uuid: 'uuid-1' });
+
+    // Disparó el fallback a OpenAI.
+    expect(anillustrious.generate).toHaveBeenCalledTimes(1);
+    expect(openai.generate).toHaveBeenCalledTimes(1);
+    expect(res.uuid).toBe('uuid-1');
+
+    // El fallback recibió EXACTAMENTE el prompt original (no los tags convertidos).
+    const fallbackInput = openai.generate.mock.calls[0][0];
+    expect(fallbackInput.prompt).toBe(animePrompt);
+    // Nunca recibe una lista de tags Danbooru (p. ej. "1girl, solo, ...").
+    expect(fallbackInput.prompt).not.toContain('1girl');
   });
 });

@@ -3,11 +3,15 @@ import { ImageProviderFactory } from './image-provider.factory';
 import { OpenAiImageProvider } from './openai-image.provider';
 import { SegmindImageProvider } from './segmind-image.provider';
 import { FluxImageProvider } from './flux-image.provider';
+import { AnillustriousImageProvider } from './anillustrious-image.provider';
 
 describe('ImageProviderFactory', () => {
   const openAiProvider = { name: 'openai' } as OpenAiImageProvider;
   const segmindProvider = { name: 'segmind' } as SegmindImageProvider;
   const fluxProvider = { name: 'flux' } as FluxImageProvider;
+  const anillustriousProvider = {
+    name: 'anillustrious',
+  } as AnillustriousImageProvider;
 
   function buildFactory(config: Record<string, string | undefined>) {
     const configService = {
@@ -19,6 +23,7 @@ describe('ImageProviderFactory', () => {
       openAiProvider,
       segmindProvider,
       fluxProvider,
+      anillustriousProvider,
     );
   }
 
@@ -42,12 +47,14 @@ describe('ImageProviderFactory', () => {
     expect(factory.getProvider().name).toBe('openai');
   });
 
-  it('enruta a OpenAI cuando el prompt es anime, ignorando IMAGE_PROVIDER', () => {
+  it('enruta a Anillustrious cuando el prompt es anime, ignorando IMAGE_PROVIDER', () => {
     const factory = buildFactory({ IMAGE_PROVIDER: 'flux' });
-    expect(factory.getProvider('una chica anime estilo manga').name).toBe('openai');
+    expect(factory.getProvider('una chica anime estilo manga').name).toBe(
+      'anillustrious',
+    );
   });
 
-  it('mantiene el provider por defecto cuando el prompt no es anime', () => {
+  it('mantiene el provider por defecto (Flux) cuando el prompt no es anime', () => {
     const factory = buildFactory({ IMAGE_PROVIDER: 'flux' });
     expect(factory.getProvider('a realistic photo of a mountain').name).toBe('flux');
   });
