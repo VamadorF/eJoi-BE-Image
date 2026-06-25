@@ -94,8 +94,6 @@ export class AnillustriousImageProvider implements ImageProvider {
       throw new InternalServerErrorException('Anillustrious: prompt vacío.');
     }
 
-    this.logger.log(`provider=anillustrious rawPrompt="${originalPrompt}"`);
-
     // Conversión NL → tags Danbooru (positivo + negativo), SOLO dentro de este
     // flujo. No muta `input`.
     const { positive, negative } = this.transformer.transform(originalPrompt);
