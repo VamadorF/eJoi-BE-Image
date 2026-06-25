@@ -97,9 +97,8 @@ export class AnillustriousImageProvider implements ImageProvider {
     // Conversión NL → tags Danbooru (positivo + negativo), SOLO dentro de este
     // flujo. No muta `input`.
     const { positive, negative } = this.transformer.transform(originalPrompt);
-    this.logger.log(
-      `provider=anillustrious transform=applied origLen=${originalPrompt.length} posLen=${positive.length} negLen=${negative.length}`,
-    );
+    this.logger.log(`provider=anillustrious positive_prompt="${positive}"`);
+    this.logger.log(`provider=anillustrious negative_prompt="${negative}"`);
 
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const version = await this.resolveModelVersion(apiKey);
