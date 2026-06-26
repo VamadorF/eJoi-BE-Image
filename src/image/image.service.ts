@@ -152,13 +152,35 @@ export class ImageService {
                 );
             }
 
-            const result = await this.llm.generateImage({
+            const sourceExt = this.extFromContentType(file.mimetype);
+            const sourceUploaded = await this.storage.uploadImage({
+                buffer: file.buffer,
+                contentType: file.mimetype,
+                uuid: dto.uuid,
+                ext: sourceExt,
+            });
+            const sourceUrl = await this.storage.getSignedReadUrl(
+                sourceUploaded.storagePath,
+                15,
+            );
+
+            const provider = this.providerFactory.getProvider(dto.prompt);
+            if (!provider.edit) {
+                throw new BadRequestException(
+                    `El proveedor ${provider.name} no soporta edicion con imagen.`,
+                );
+            }
+
+            const result = await provider.edit({
                 prompt: dto.prompt,
-                model: 'gpt-image-1-mini',
-                quality: 'low',
-                size: '1024x1024',
+                uuid: dto.uuid,
+                userId: dto.userId,
+                companionId: dto.companionId,
+                negativePrompt: dto.negativePrompt,
+                aspectRatio: dto.aspectRatio,
                 outputFormat: 'png',
-                timeoutMs: 30000,
+                timeoutMs: 60000,
+                inputImages: [sourceUrl],
             });
 
             const buffer = Buffer.from(result.b64, 'base64');

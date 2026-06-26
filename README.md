@@ -182,8 +182,8 @@ Fallback opcional: si `IMAGE_PROVIDER=segmind`, Segmind falla y
 El contrato de respuesta de `/image/generate` se mantiene igual independientemente
 del provider: `{ uuid, filename, fileUrl, createdAt }`.
 
-> **Nota:** `/image/generate-with-image` (edición imagen-a-imagen) usa solo OpenAI
-> `images.edit`; Segmind Imagen 4 Fast es solo texto-a-imagen.
+> **Nota:** `/image/generate-with-image` (edición imagen-a-imagen) usa Flux
+> (`black-forest-labs/flux-2-pro`) con una imagen de referencia.
 
 #### Probar localmente con OpenAI
 
@@ -215,8 +215,9 @@ npm run start:dev
 
 1. El cliente envía un archivo + prompt a `/image/generate-with-image`
 2. Se valida el archivo (PNG/JPEG/WEBP, máx 10MB)
-3. Se llama a OpenAI `images.edit` con la imagen y el prompt
-4. El resultado se sube a GCS y se devuelve la URL firmada
+3. La imagen original se sube a GCS y se firma una URL temporal
+4. Se llama a Flux con `input_images` y el prompt
+5. El resultado se sube a GCS y se devuelve la URL firmada
 
 ## Características
 

@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  ImageEditInput,
   ImageGenerationInput,
   ImageGenerationResult,
   ImageProvider,
@@ -29,51 +30,77 @@ export class FluxImageProvider implements ImageProvider {
 
   private readonly logger = new Logger(FluxImageProvider.name);
   private cachedVersion: string | null = null;
-  private versionExpiry: number = 0;
+  private versionExpiry = 0;
 
   constructor(private readonly config: ConfigService) {}
 
   async generate(input: ImageGenerationInput): Promise<ImageGenerationResult> {
+    return this.runPrediction(input, {
+      prompt: this.cleanPrompt(input.prompt),
+      aspect_ratio: input.aspectRatio ?? '1:1',
+      output_format: this.toReplicateFormat(input.outputFormat ?? 'webp'),
+    });
+  }
+
+  async edit(input: ImageEditInput): Promise<ImageGenerationResult> {
+    if (!input.inputImages.length) {
+      throw new InternalServerErrorException('Flux: imagen de entrada vacia.');
+    }
+
+    return this.runPrediction(input, {
+      prompt: this.cleanPrompt(input.prompt),
+      input_images: input.inputImages,
+      aspect_ratio: input.aspectRatio ?? 'match_input_image',
+      output_format: this.toReplicateFormat(input.outputFormat ?? 'png'),
+    });
+  }
+
+  private cleanPrompt(prompt: string): string {
+    const cleaned = (prompt ?? '').trim();
+    if (!cleaned) {
+      throw new InternalServerErrorException('Flux: prompt vacio.');
+    }
+    return cleaned;
+  }
+
+  private toReplicateFormat(format: 'png' | 'jpeg' | 'webp'): 'png' | 'jpg' | 'webp' {
+    return format === 'jpeg' ? 'jpg' : format;
+  }
+
+  private async runPrediction(
+    input: ImageGenerationInput,
+    replicateInput: Record<string, unknown>,
+  ): Promise<ImageGenerationResult> {
     const apiKey = this.config.get<string>('REPLICATE_API_KEY');
     if (!apiKey) {
-      this.logger.error('REPLICATE_API_KEY no está configurada');
+      this.logger.error('REPLICATE_API_KEY no esta configurada');
       throw new InternalServerErrorException(
-        'El proveedor Flux no está configurado correctamente.',
+        'El proveedor Flux no esta configurado correctamente.',
       );
     }
 
-    const prompt = (input.prompt ?? '').trim();
-    if (!prompt) {
-      throw new InternalServerErrorException('Flux: prompt vacío.');
-    }
-
-    const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const outputFormat =
-      input.outputFormat === 'jpeg' ? 'jpg' : input.outputFormat ?? 'webp';
-
     const version = await this.resolveModelVersion(apiKey);
-
-    const body = {
-      version,
-      input: {
-        prompt,
-        aspect_ratio: input.aspectRatio ?? '1:1',
-        output_format: outputFormat,
-      },
-    };
-
-    this.logger.log(
-      `provider=flux model=${FLUX_MODEL} version=${version} prompt="${prompt.slice(0, 60)}"`,
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     );
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    this.logger.log(
+      `provider=flux model=${FLUX_MODEL} version=${version} prompt="${String(replicateInput.prompt).slice(0, 60)}"`,
+    );
 
     let prediction: ReplicatePrediction;
     try {
-      prediction = await this.createPrediction(apiKey, body, controller);
+      prediction = await this.createPrediction(
+        apiKey,
+        { version, input: replicateInput },
+        controller,
+      );
     } catch (err: any) {
-      this.logger.error(`Flux create prediction error: ${err?.message ?? 'unknown'}`);
+      this.logger.error(
+        `Flux create prediction error: ${err?.message ?? 'unknown'}`,
+      );
       throw new InternalServerErrorException(
         'No pude generar la imagen en este momento. Por favor intenta nuevamente.',
       );
@@ -86,7 +113,9 @@ export class FluxImageProvider implements ImageProvider {
       const { b64, contentType } = await this.downloadAsBase64(outputUrl);
       return this.buildResult(b64, contentType, input);
     } catch (err: any) {
-      this.logger.error(`Flux polling/download error: ${err?.message ?? 'unknown'}`);
+      this.logger.error(
+        `Flux polling/download error: ${err?.message ?? 'unknown'}`,
+      );
       throw new InternalServerErrorException(
         'No pude generar la imagen en este momento. Por favor intenta nuevamente.',
       );
@@ -118,7 +147,7 @@ export class FluxImageProvider implements ImageProvider {
       const version = modelData.latest_version?.id;
 
       if (!version) {
-        throw new Error('No se encontró versión del modelo FLUX en Replicate');
+        throw new Error('No se encontro version del modelo FLUX en Replicate');
       }
 
       this.cachedVersion = version;
@@ -129,7 +158,7 @@ export class FluxImageProvider implements ImageProvider {
     } catch (err: any) {
       if (this.cachedVersion) {
         this.logger.warn(
-          `Flux version lookup failed, usando versión cacheada: ${err?.message}`,
+          `Flux version lookup failed, usando version cacheada: ${err?.message}`,
         );
         return this.cachedVersion;
       }
