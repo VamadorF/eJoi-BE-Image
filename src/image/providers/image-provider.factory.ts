@@ -28,8 +28,8 @@ export class ImageProviderFactory {
    */
   getProvider(prompt?: string): ImageProvider {
     if (prompt && isAnimePrompt(prompt)) {
-      this.logger.log('Prompt anime detectado: usando provider Anillustrious');
-      return this.anillustriousProvider;
+      this.logger.log('Prompt anime detectado: usando provider Flux');
+      return this.fluxProvider;
     }
 
     const configured = (this.config.get<string>('IMAGE_PROVIDER') ?? 'openai')
