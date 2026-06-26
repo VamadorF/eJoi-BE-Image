@@ -6,6 +6,7 @@ interface FluxRequestBody {
     prompt: string;
     aspect_ratio: string;
     output_format: string;
+    input_images?: string[];
   };
 }
 
@@ -101,6 +102,35 @@ describe('FluxImageProvider', () => {
     expect('go_fast' in body.input).toBe(false);
     expect(result.provider).toBe('flux');
     expect(result.contentType).toBe('image/webp');
+  });
+
+  it('edita una imagen usando input_images', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ latest_version: { id: 'version-1' } }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ id: 'prediction-1' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'prediction-1',
+          status: 'succeeded',
+          output: 'https://cdn.example/edited.png',
+        }),
+      )
+      .mockResolvedValueOnce(imageResponse());
+
+    const provider = new FluxImageProvider(makeConfig());
+    const result = await provider.edit({
+      prompt: 'cambia el fondo a playa',
+      inputImages: ['https://signed.example/source.png'],
+    });
+
+    const body = requestBody(fetchMock, 1);
+    expect(body.input.prompt).toBe('cambia el fondo a playa');
+    expect(body.input.input_images).toEqual(['https://signed.example/source.png']);
+    expect(body.input.aspect_ratio).toBe('match_input_image');
+    expect(body.input.output_format).toBe('png');
+    expect(result.provider).toBe('flux');
   });
 
   it('propaga errores de predicción no recuperables', async () => {

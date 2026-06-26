@@ -30,6 +30,10 @@ export interface ImageGenerationInput {
   uuid?: string;
 }
 
+export interface ImageEditInput extends ImageGenerationInput {
+  inputImages: string[];
+}
+
 export interface ImageGenerationResult {
   b64: string;
   contentType: string;
@@ -44,4 +48,5 @@ export interface ImageGenerationResult {
 export interface ImageProvider {
   readonly name: ImageProviderName;
   generate(input: ImageGenerationInput): Promise<ImageGenerationResult>;
+  edit?(input: ImageEditInput): Promise<ImageGenerationResult>;
 }
