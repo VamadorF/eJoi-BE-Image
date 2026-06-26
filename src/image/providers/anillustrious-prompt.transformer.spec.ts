@@ -6,9 +6,13 @@ import {
 
 /** Helpers para aserciones sobre listas de tags. */
 const posTags = (prompt: string) =>
-  transformAnillustriousPrompt(prompt).positive.split(',').map((t) => t.trim());
+  transformAnillustriousPrompt(prompt)
+    .positive.split(',')
+    .map((t) => t.trim());
 const negTags = (prompt: string) =>
-  transformAnillustriousPrompt(prompt).negative.split(',').map((t) => t.trim());
+  transformAnillustriousPrompt(prompt)
+    .negative.split(',')
+    .map((t) => t.trim());
 
 describe('transformAnillustriousPrompt — sujeto / género / cantidad', () => {
   it('woman → 1girl, solo, adult', () => {
@@ -53,9 +57,15 @@ describe('transformAnillustriousPrompt — sujeto / género / cantidad', () => {
 
 describe('transformAnillustriousPrompt — aliases por categoría', () => {
   it('composición/anatomía', () => {
-    const t = posTags('upper-body portrait, cel shading, both eyes clearly visible');
+    const t = posTags(
+      'upper-body portrait, cel shading, both eyes clearly visible',
+    );
     expect(t).toEqual(
-      expect.arrayContaining(['upper body', 'cel shading', 'looking at viewer']),
+      expect.arrayContaining([
+        'upper body',
+        'cel shading',
+        'looking at viewer',
+      ]),
     );
   });
 
@@ -67,14 +77,20 @@ describe('transformAnillustriousPrompt — aliases por categoría', () => {
   it('iluminación/color', () => {
     const t = posTags('warm-neutral lighting and vivid colors');
     expect(t).toEqual(
-      expect.arrayContaining(['warm lighting', 'vibrant colors', 'colorful']),
+      expect.arrayContaining(['warm lighting', 'vibrant colors']),
     );
+    expect(t).not.toContain('colorful');
   });
 
   it('escenas/intereses (longest-first, sin duplicar)', () => {
     const t = posTags('evening city street with colorful signs');
     expect(t).toEqual(
-      expect.arrayContaining(['city street', 'outdoors', 'evening', 'neon signs']),
+      expect.arrayContaining([
+        'city street',
+        'outdoors',
+        'evening',
+        'neon signs',
+      ]),
     );
   });
 
@@ -95,8 +111,12 @@ describe('transformAnillustriousPrompt — apariencia/etnia y exclusión mutua',
   });
 
   it('peinados afro/coils/locs/braids enumerados ⇒ no emite ninguno', () => {
-    const t = posTags('dark brown skin, black hair, afro, coils, locs, or braids');
-    expect(t).toEqual(expect.arrayContaining(['dark skin', 'black hair']));
+    const t = posTags(
+      'dark brown skin, black hair, afro, coils, locs, or braids',
+    );
+    expect(t).toEqual(
+      expect.arrayContaining(['deep brown skin', 'black hair']),
+    );
     expect(t).not.toContain('afro');
     expect(t).not.toContain('braid');
     expect(t).not.toContain('dreadlocks');
@@ -146,18 +166,97 @@ describe('transformAnillustriousPrompt — negativos', () => {
 });
 
 describe('transformAnillustriousPrompt — base, dedupe y robustez', () => {
-  it('añade tags base seguros una sola vez', () => {
-    const out = transformAnillustriousPrompt('anime girl, high quality').positive;
+  it('añade masterpiece primero y no inventa atributos base', () => {
+    const out = transformAnillustriousPrompt(
+      'anime girl, high quality',
+    ).positive;
     const tags = out.split(',').map((t) => t.trim());
+    expect(tags[0]).toBe('masterpiece');
     expect(tags.filter((t) => t === 'high quality')).toHaveLength(1);
-    expect(tags).toEqual(expect.arrayContaining(['anime', 'high quality', 'detailed eyes']));
+    expect(tags).toEqual(expect.arrayContaining(['anime', 'high quality']));
+    expect(tags).not.toContain('detailed eyes');
   });
 
   it('devuelve salida usable con entrada vacía o imperfecta', () => {
-    expect(posTags('')).toEqual(
-      expect.arrayContaining(['anime', 'high quality', 'detailed eyes']),
+    expect(posTags('')).toEqual(['masterpiece']);
+    expect(posTags('!!!')).toEqual(['masterpiece']);
+  });
+});
+
+describe('transformAnillustriousPrompt — simplificación de tags', () => {
+  it.each([
+    [
+      'modern high quality anime character illustration',
+      ['masterpiece', 'high quality', 'modern anime illustration'],
+    ],
+    [
+      'expressive detailed anime eyes with layered iris colors, glossy highlights, and subtle reflective depth',
+      [
+        'masterpiece',
+        'detailed anime eyes',
+        'layered irises',
+        'glossy highlights',
+      ],
+    ],
+    [
+      'dynamic layered hair silhouette with many separated strands, sharp highlights, and deep shadow shapes',
+      [
+        'masterpiece',
+        'layered hair',
+        'separated strands',
+        'sharp highlights',
+        'deep shadows',
+      ],
+    ],
+    [
+      'clean stylized neck and shoulder proportions',
+      ['masterpiece', 'natural neck and shoulder proportions'],
+    ],
+    [
+      'polished high detail modern anime key visual style, contemporary anime character art',
+      ['masterpiece', 'polished modern anime key visual'],
+    ],
+    [
+      'black african descent, deep dark brown or rich tone',
+      ['masterpiece', 'black woman', 'african descent', 'deep brown skin'],
+    ],
+    [
+      'stylish contemporary casual outfit, such fitted jacket, soft knit sweater, simple blouse, hoodie, or modern streetwear inspired top',
+      [
+        'masterpiece',
+        'contemporary casual outfit',
+        'jacket',
+        'sweater',
+        'blouse',
+        'hoodie',
+      ],
+    ],
+  ])('reduce frases largas sin cambiar su intención', (input, expected) => {
+    expect(posTags(input)).toEqual(expected);
+  });
+
+  it('deduplica tags exactos y casi equivalentes conservando el más específico', () => {
+    expect(
+      posTags(
+        'modern anime, modern anime illustration, modern high quality anime character illustration',
+      ),
+    ).toEqual(['masterpiece', 'high quality', 'modern anime illustration']);
+  });
+
+  it('elimina fragmentos de conectores e instrucciones sin dejar tags rotos', () => {
+    const tags = posTags('a woman, such, or, especially, should, must');
+    expect(tags).toEqual(['masterpiece', '1girl', 'solo', 'adult']);
+    for (const fragment of ['such', 'or', 'especially', 'should', 'must']) {
+      expect(tags).not.toContain(fragment);
+    }
+  });
+
+  it('conserva negaciones importantes al limpiar instrucciones', () => {
+    const { positive, negative } = transformAnillustriousPrompt(
+      'a woman, must not show red eyes',
     );
-    expect(transformAnillustriousPrompt('!!!').positive.length).toBeGreaterThan(0);
+    expect(positive).not.toContain('red eyes');
+    expect(negative.split(',').map((tag) => tag.trim())).toContain('red eyes');
   });
 });
 
